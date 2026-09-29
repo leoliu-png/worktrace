@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>我的日志 - WorkTrace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container": "#eaedff",
+                        "surface-dim": "#d2d9f4",
+                        "inverse-surface": "#283044",
+                        "primary": "#006591",
+                        "on-secondary-fixed": "#0b1c30",
+                        "surface-container-highest": "#dae2fd",
+                        "error": "#ba1a1a",
+                        "on-surface": "#131b2e",
+                        "on-primary-container": "#003751",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "on-background": "#131b2e",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "outline-variant": "#bec8d2",
+                        "surface": "#faf8ff",
+                        "inverse-primary": "#89ceff",
+                        "tertiary": "#5c5f61",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-tint": "#006591",
+                        "background": "#faf8ff",
+                        "secondary": "#505f76",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "secondary-fixed": "#d3e4fe",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed": "#001e2f",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "secondary-container": "#d0e1fb",
+                        "on-tertiary-fixed": "#191c1e",
+                        "surface-container-low": "#f2f3ff",
+                        "on-secondary": "#ffffff",
+                        "primary-container": "#0ea5e9",
+                        "on-tertiary-container": "#303436",
+                        "on-secondary-container": "#54647a",
+                        "inverse-on-surface": "#eef0ff",
+                        "tertiary-fixed": "#e0e3e5",
+                        "surface-bright": "#faf8ff",
+                        "tertiary-container": "#999c9e",
+                        "primary-fixed-dim": "#89ceff",
+                        "outline": "#6e7881",
+                        "surface-container-high": "#e2e7ff",
+                        "on-surface-variant": "#3e4850",
+                        "primary-fixed": "#c9e6ff",
+                        "on-error": "#ffffff",
+                        "surface-variant": "#dae2fd"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xl": "40px",
+                        "xs": "4px",
+                        "container-max": "1440px",
+                        "sidebar-width": "260px",
+                        "base": "4px",
+                        "sm": "8px",
+                        "md": "16px",
+                        "lg": "24px"
+                    },
+                    "fontFamily": {
+                        "display-lg-mobile": ["Inter"],
+                        "body-base": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "headline-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "display-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "body-base": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.filled {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-base antialiased flex h-screen overflow-hidden">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-screen w-sidebar-width bg-surface dark:bg-surface-dim border-r border-outline-variant dark:border-outline flex flex-col py-lg z-20 hidden md:flex">
+<!-- Header -->
+<div class="px-lg mb-lg">
+<div class="flex items-center gap-md mb-md">
+<div class="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold font-headline-md">W</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-inverse-primary">WorkTrace</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">企业内部工具</p>
+</div>
+</div>
+<!-- CTA -->
+<button class="w-full bg-primary-container text-on-primary-container font-label-caps text-label-caps rounded flex items-center justify-center gap-sm py-md hover:opacity-90 active:scale-95 transition-transform">
+<span class="material-symbols-outlined">add</span>
+                新建日志
+            </button>
+</div>
+<!-- Navigation Tabs -->
+<nav class="flex-1 overflow-y-auto">
+<ul class="flex flex-col gap-xs">
+<li>
+<a class="flex items-center gap-md px-lg py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                        概览
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-lg py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined" data-icon="list_alt">list_alt</span>
+                        所有日志
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-lg py-sm bg-secondary-container text-on-secondary-container border-l-4 border-primary font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined filled" data-icon="history_edu">history_edu</span>
+                        我的日志
+                    </a>
+</li>
+<li>
+<a class="flex items-center gap-md px-lg py-sm text-on-surface-variant hover:bg-surface-container-high transition-colors font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined" data-icon="vpn_key">vpn_key</span>
+                        API 密钥
+                    </a>
+</li>
+</ul>
+</nav>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 md:ml-sidebar-width flex flex-col h-screen overflow-hidden bg-background">
+<!-- TopAppBar -->
+<header class="h-xl bg-surface dark:bg-surface-dim border-b border-outline-variant dark:border-outline flex justify-between items-center px-lg flex-shrink-0 z-10 hidden md:flex">
+<div class="font-headline-md text-headline-md font-bold text-on-surface">个人日志管理</div>
+<div class="flex items-center gap-lg">
+<!-- Search -->
+<div class="relative">
+<span class="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input class="pl-[32px] pr-sm py-sm bg-surface-container-lowest border border-outline-variant rounded focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 font-body-sm text-body-sm w-64 text-on-surface placeholder:text-on-surface-variant transition-all" placeholder="搜索日志..." type="text"/>
+</div>
+<!-- Actions -->
+<div class="flex items-center gap-sm">
+<button class="text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-variant rounded-full p-2 cursor-pointer transition-all">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:bg-surface-container dark:hover:bg-surface-variant rounded-full p-2 cursor-pointer transition-all">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant ml-sm cursor-pointer">
+<img alt="Administrator" class="w-full h-full object-cover" data-alt="A professional headshot of a corporate administrator in a modern office setting. The lighting is soft and bright, emphasizing a modern light-mode aesthetic. The individual wears minimal, stylish business casual attire, fitting a sleek enterprise environment. The colors are muted with hints of blue and cyan." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7tio-R-axzG6dBO529XxT3R5Ysp8w0PZmqBeybDHj3GS2afXjC2pRtj7mgxbnMzp74QfDrbyBRXkT6qMhKatYhi8P9uoVnFPjSYdHpDXjCqnkCfWU88hDTgOsNBI1D1_UMK3lQEUfXEKFr3mmq6pN1TxYt3biZnOVoJrd0-647SUZo7BvixveXuzYJ0Lkh7x86eqxuAlXW4SuJw53atvbQjFkA0dVHQV5wxflGkmgayrzGhQn1uGzzw"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Mobile Header (Simplified) -->
+<header class="h-16 bg-surface border-b border-outline-variant flex justify-between items-center px-md md:hidden flex-shrink-0 z-10">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary cursor-pointer">menu</span>
+<div class="font-headline-md text-headline-md font-bold text-on-surface">我的日志</div>
+</div>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant cursor-pointer">
+<img alt="Administrator" class="w-full h-full object-cover" data-alt="A professional headshot of a corporate administrator in a modern office setting. The lighting is soft and bright, emphasizing a modern light-mode aesthetic. The individual wears minimal, stylish business casual attire, fitting a sleek enterprise environment. The colors are muted with hints of blue and cyan." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdTmtJI55fuz_twImg67dh_ONi_o4IOKSSb8W6mTvXlLm4U5Dild4lTFqzl_vqcQ-ZjYQevc1jQ8zs82yF6RW_wW5Bz2s4Qk46bdJzlwrxK16D5RralB7KGXe4AQ6SVIYOW_qAMWBiEfWk16qmSuvBI482PRAc4HP-Rb5mPOL1MPaERTwuUYMqzaoWKGEuxaDC1s1el-g62rF50nNpX7XWl_v2aHlEFRkpJu7jJ7yJ2qOx7XIetNveiw"/>
+</div>
+</header>
+<!-- Canvas -->
+<div class="flex-1 overflow-y-auto p-md md:p-xl flex justify-center">
+<div class="w-full max-w-container-max flex flex-col gap-lg">
+<!-- Page Header (Canvas Level) -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-md mb-md">
+<div>
+<h2 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-on-background mb-xs">我的工作轨迹</h2>
+<p class="font-body-base text-body-base text-on-surface-variant">查看和管理您最近的工作日志条目。</p>
+</div>
+<div class="flex items-center gap-sm">
+<button class="bg-surface border border-outline-variant text-on-surface font-label-caps text-label-caps px-md py-sm rounded flex items-center gap-xs hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                            筛选
+                        </button>
+</div>
+</div>
+<!-- Log List (Bento-inspired List) -->
+<div class="flex flex-col gap-sm">
+<!-- Log Item 1 -->
+<div class="group bg-surface-container-lowest border border-outline-variant rounded-lg p-md md:p-lg flex flex-col md:flex-row md:items-center justify-between gap-md hover:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] hover:border-primary/30 transition-all cursor-pointer">
+<div class="flex-1 flex flex-col md:flex-row md:items-center gap-md md:gap-lg">
+<!-- Date Block -->
+<div class="flex-shrink-0 w-24">
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">2023-10-24</div>
+<div class="font-body-sm text-body-sm text-outline mt-1">周二</div>
+</div>
+<!-- Content -->
+<div class="flex-1">
+<h3 class="font-headline-md text-[16px] font-semibold text-on-surface mb-1 group-hover:text-primary transition-colors">完成第四季度架构评审</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1 md:line-clamp-2">参与了核心模块的微服务架构拆分评审会议，确认了用户服务和订单服务的接口边界。后续需要更新相关技术文档。</p>
+</div>
+</div>
+<!-- Metadata & Actions -->
+<div class="flex items-center justify-between md:justify-end gap-lg flex-shrink-0 mt-sm md:mt-0 pt-sm md:pt-0 border-t border-outline-variant/30 md:border-none">
+<span class="inline-flex items-center px-2 py-1 rounded-full text-[12px] font-semibold bg-emerald-100/50 text-emerald-700">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                                已同步
+                            </span>
+<div class="flex items-center gap-xs opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded transition-colors" title="编辑">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded transition-colors" title="查看详情">
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Log Item 2 -->
+<div class="group bg-surface-container-lowest border border-outline-variant rounded-lg p-md md:p-lg flex flex-col md:flex-row md:items-center justify-between gap-md hover:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] hover:border-primary/30 transition-all cursor-pointer">
+<div class="flex-1 flex flex-col md:flex-row md:items-center gap-md md:gap-lg">
+<div class="flex-shrink-0 w-24">
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">2023-10-23</div>
+<div class="font-body-sm text-body-sm text-outline mt-1">周一</div>
+</div>
+<div class="flex-1">
+<h3 class="font-headline-md text-[16px] font-semibold text-on-surface mb-1 group-hover:text-primary transition-colors">修复前端性能瓶颈</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1 md:line-clamp-2">排查并修复了列表渲染时的内存泄漏问题，优化了虚拟列表组件，将首屏加载时间降低了约 30%。</p>
+</div>
+</div>
+<div class="flex items-center justify-between md:justify-end gap-lg flex-shrink-0 mt-sm md:mt-0 pt-sm md:pt-0 border-t border-outline-variant/30 md:border-none">
+<span class="inline-flex items-center px-2 py-1 rounded-full text-[12px] font-semibold bg-amber-100/50 text-amber-700">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span>
+                                草稿
+                            </span>
+<div class="flex items-center gap-xs opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded transition-colors" title="编辑">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded transition-colors" title="查看详情">
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Log Item 3 -->
+<div class="group bg-surface-container-lowest border border-outline-variant rounded-lg p-md md:p-lg flex flex-col md:flex-row md:items-center justify-between gap-md hover:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] hover:border-primary/30 transition-all cursor-pointer">
+<div class="flex-1 flex flex-col md:flex-row md:items-center gap-md md:gap-lg">
+<div class="flex-shrink-0 w-24">
+<div class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">2023-10-20</div>
+<div class="font-body-sm text-body-sm text-outline mt-1">周五</div>
+</div>
+<div class="flex-1">
+<h3 class="font-headline-md text-[16px] font-semibold text-on-surface mb-1 group-hover:text-primary transition-colors">客户需求讨论会：API 扩展</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1 md:line-clamp-2">与重要客户团队沟通了 REST API 的扩展需求，记录了他们对于批量处理端点的高频诉求，预计下周产出技术方案。</p>
+</div>
+</div>
+<div class="flex items-center justify-between md:justify-end gap-lg flex-shrink-0 mt-sm md:mt-0 pt-sm md:pt-0 border-t border-outline-variant/30 md:border-none">
+<span class="inline-flex items-center px-2 py-1 rounded-full text-[12px] font-semibold bg-emerald-100/50 text-emerald-700">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                                已同步
+                            </span>
+<div class="flex items-center gap-xs opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded transition-colors" title="编辑">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded transition-colors" title="查看详情">
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Load More / Pagination placeholder -->
+<div class="flex justify-center mt-md">
+<button class="text-primary font-label-caps text-label-caps py-sm px-md hover:bg-surface-container rounded transition-colors">
+                        加载更多
+                    </button>
+</div>
+</div>
+</div>
+</main>
+</body></html>

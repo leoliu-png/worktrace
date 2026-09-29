@@ -1,0 +1,123 @@
+{
+  "projectId": "13184519543186088546",
+  "title": "WorkTrace 工作追踪系统",
+  "designSystemAsset": "assets/cffc41ff8bd94539a3a60b161687459b",
+  "theme": {
+    "bodyFont": "INTER",
+    "bodyFontFamily": "Inter",
+    "colorMode": "LIGHT",
+    "colorVariant": "FIDELITY",
+    "customColor": "#0ea5e9",
+    "designMd": "---\nname: WorkTrace / 工作轨迹\ncolors:\n  surface: '#faf8ff'\n  surface-dim: '#d2d9f4'\n  surface-bright: '#faf8ff'\n  surface-container-lowest: '#ffffff'\n  surface-container-low: '#f2f3ff'\n  surface-container: '#eaedff'\n  surface-container-high: '#e2e7ff'\n  surface-container-highest: '#dae2fd'\n  on-surface: '#131b2e'\n  on-surface-variant: '#3e4850'\n  inverse-surface: '#283044'\n  inverse-on-surface: '#eef0ff'\n  outline: '#6e7881'\n  outline-variant: '#bec8d2'\n  surface-tint: '#006591'\n  primary: '#006591'\n  on-primary: '#ffffff'\n  primary-container: '#0ea5e9'\n  on-primary-container: '#003751'\n  inverse-primary: '#89ceff'\n  secondary: '#505f76'\n  on-secondary: '#ffffff'\n  secondary-container: '#d0e1fb'\n  on-secondary-container: '#54647a'\n  tertiary: '#5c5f61'\n  on-tertiary: '#ffffff'\n  tertiary-container: '#999c9e'\n  on-tertiary-container: '#303436'\n  error: '#ba1a1a'\n  on-error: '#ffffff'\n  error-container: '#ffdad6'\n  on-error-container: '#93000a'\n  primary-fixed: '#c9e6ff'\n  primary-fixed-dim: '#89ceff'\n  on-primary-fixed: '#001e2f'\n  on-primary-fixed-variant: '#004c6e'\n  secondary-fixed: '#d3e4fe'\n  secondary-fixed-dim: '#b7c8e1'\n  on-secondary-fixed: '#0b1c30'\n  on-secondary-fixed-variant: '#38485d'\n  tertiary-fixed: '#e0e3e5'\n  tertiary-fixed-dim: '#c4c7c9'\n  on-tertiary-fixed: '#191c1e'\n  on-tertiary-fixed-variant: '#444749'\n  background: '#faf8ff'\n  on-background: '#131b2e'\n  surface-variant: '#dae2fd'\ntypography:\n  display-lg:\n    fontFamily: Inter\n    fontSize: 32px\n    fontWeight: '700'\n    lineHeight: 40px\n    letterSpacing: -0.02em\n  display-lg-mobile:\n    fontFamily: Inter\n    fontSize: 24px\n    fontWeight: '700'\n    lineHeight: 32px\n  headline-md:\n    fontFamily: Inter\n    fontSize: 20px\n    fontWeight: '600'\n    lineHeight: 28px\n  body-base:\n    fontFamily: Inter\n    fontSize: 16px\n    fontWeight: '400'\n    lineHeight: 24px\n  body-sm:\n    fontFamily: Inter\n    fontSize: 14px\n    fontWeight: '400'\n    lineHeight: 20px\n  label-caps:\n    fontFamily: Inter\n    fontSize: 12px\n    fontWeight: '600'\n    lineHeight: 16px\n    letterSpacing: 0.05em\nrounded:\n  sm: 0.125rem\n  DEFAULT: 0.25rem\n  md: 0.375rem\n  lg: 0.5rem\n  xl: 0.75rem\n  full: 9999px\nspacing:\n  base: 4px\n  xs: 4px\n  sm: 8px\n  md: 16px\n  lg: 24px\n  xl: 40px\n  sidebar-width: 260px\n  container-max: 1440px\n---\n\n## Brand & Style\n\nThe design system is built on a foundation of **Minimalism** and **Modern Corporate** aesthetics. It is designed for high-frequency internal enterprise use, where clarity, speed of cognition, and reduced visual fatigue are paramount. \n\nThe personality is professional, objective, and efficient. It utilizes generous whitespace to separate distinct work streams while maintaining a structured grid to convey reliability. The emotional response should be one of \"organized calm\"—transforming complex project data into a clean, traceable narrative. Visual flair is restricted to functional accents (status indicators and primary actions) to ensure the content remains the focal point.\n\n## Colors\n\nThe palette is anchored by a high-energy Cyan-Blue primary color used exclusively for intent-driven actions and progress indicators. \n\n- **Primary (#0EA5E9):** Used for buttons, active states, and primary progress bars.\n- **Surface (#F8FAFC):** The default application background to reduce eye strain compared to pure white.\n- **Text Primary (#0F172A):** A deep navy-black for maximum contrast in headings.\n- **Text Secondary (#64748B):** A muted slate for metadata and labels.\n- **Borders (#E2E8F0):** Thin, low-contrast dividers to define structure without adding visual noise.\n\n**Dark Mode Principles:** When system-triggered, the surface shifts to `#0F172A`, borders to `#1E293B`, and text to `#F8FAFC`. Primary accents remain `#0EA5E9` but may utilize a subtle glow (low-alpha shadow) to maintain prominence.\n\n## Typography\n\nThis design system uses a systematic sans-serif approach, prioritizing **Inter** for its excellent legibility in data-heavy environments. \n\n- **Hierarchical Contrast:** Large headings use Bold (700) or Semi-Bold (600) weights in `#0F172A` to create clear entry points for the eye.\n- **Chinese Typesetting:** Ensure a fall-back to \"Microsoft YaHei\" (微软雅黑) or system-default PingFang SC. Line heights for Chinese characters are set slightly wider (1.5x to 1.6x) than English defaults to improve readability of complex strokes.\n- **Readability:** Body text defaults to 14px (`body-sm`) for density-heavy dashboards, and 16px (`body-base`) for documentation or \"Work Capture\" inputs.\n\n## Layout & Spacing\n\nThe system employs a **Fixed-Fluid Hybrid** grid. \n- **Navigation:** A fixed 260px left-hand sidebar for primary navigation (工作台, 项目, 团队, 设置).\n- **Content Area:** A fluid main container with a maximum width of 1440px to prevent excessive line lengths on ultra-wide monitors.\n- **Rhythm:** An 8px linear scale (4, 8, 16, 24, 40, 64) governs all padding and margins. \n\n**Adaptive Behavior:**\n- **Desktop:** 12-column grid, 24px gutters.\n- **Tablet:** 8-column grid, 16px gutters, sidebar collapses to icons.\n- **Mobile:** 4-column grid, 16px margins, sidebar transforms into a bottom navigation bar or a top-level burger menu.\n\n## Elevation & Depth\n\nThis design system avoids heavy shadows, opting instead for **Tonal Layers** and **Ghost Outlines**.\n\n- **Level 0 (Base):** Background color `#F8FAFC`.\n- **Level 1 (Cards/Sidebar):** White background (`#FFFFFF`) with a 1px border of `#E2E8F0`. No shadow. Used for the main workspace tiles.\n- **Level 2 (Hover/Active):** A very soft, diffused shadow: `0 4px 6px -1px rgba(0, 0, 0, 0.05)`. Used when a user interacts with a card.\n- **Level 3 (Modals/Popovers):** Standard shadow `0 10px 15px -3px rgba(0, 0, 0, 0.1)` to provide clear separation from the background content.\n\nDepth is primarily communicated through color shifts (e.g., a slightly darker gray for inset fields) rather than physical extrusion.\n\n## Shapes\n\nThe shape language is **Soft and Professional**. \n- **Standard Elements:** Buttons, input fields, and cards use a 4px (0.25rem) radius to maintain a precise, engineered feel.\n- **Large Elements:** Larger containers or dashboard sections may use up to 8px (0.5rem) to soften the overall interface.\n- **Interactive States:** High-contrast square corners are avoided to ensure the tool feels approachable and modern.\n\n## Components\n\n### Buttons\n- **Primary:** Background `#0EA5E9`, Text `#FFFFFF`, 4px radius. \n- **Secondary:** Background `transparent`, Border `1px solid #E2E8F0`, Text `#0F172A`.\n- **Ghost:** No border or background unless hovered. Use for secondary actions like \"Cancel\" (取消).\n\n### Inputs & Form Fields\n- **Default State:** White background, 1px border `#E2E8F0`, 4px radius.\n- **Focus State:** Border changes to `#0EA5E9` with a 2px outer \"halo\" (soft cyan at 20% opacity).\n- **Labels:** 12px Semi-bold (`label-caps`), color `#64748B`.\n\n### Cards (The Core Unit)\n- Cards are used to wrap work entries (轨迹项). \n- **Header:** Contains the timestamp and user avatar.\n- **Content:** Uses `body-sm` for descriptions.\n- **Footer:** Contains status tags (e.g., 进行中, 已完成).\n\n### Chips/Tags\n- **Low-Saturation:** Tags use background colors with 10% opacity of their status color (e.g., Success tag is background `rgba(16, 185, 129, 0.1)` with text `#10B981`).\n\n### Sidebar Navigation\n- Vertical list. Active state uses a 3px vertical \"indicator\" bar on the far left in Cyan-Blue (#0EA5E9) and a light blue background tint.",
+    "font": "INTER",
+    "headlineFont": "INTER",
+    "headlineFontFamily": "Inter",
+    "labelFont": "INTER",
+    "labelFontFamily": "Inter",
+    "namedColors": {
+      "background": "#faf8ff",
+      "error": "#ba1a1a",
+      "error_container": "#ffdad6",
+      "inverse_on_surface": "#eef0ff",
+      "inverse_primary": "#89ceff",
+      "inverse_surface": "#283044",
+      "on_background": "#131b2e",
+      "on_error": "#ffffff",
+      "on_error_container": "#93000a",
+      "on_primary": "#ffffff",
+      "on_primary_container": "#003751",
+      "on_primary_fixed": "#001e2f",
+      "on_primary_fixed_variant": "#004c6e",
+      "on_secondary": "#ffffff",
+      "on_secondary_container": "#54647a",
+      "on_secondary_fixed": "#0b1c30",
+      "on_secondary_fixed_variant": "#38485d",
+      "on_surface": "#131b2e",
+      "on_surface_variant": "#3e4850",
+      "on_tertiary": "#ffffff",
+      "on_tertiary_container": "#303436",
+      "on_tertiary_fixed": "#191c1e",
+      "on_tertiary_fixed_variant": "#444749",
+      "outline": "#6e7881",
+      "outline_variant": "#bec8d2",
+      "primary": "#006591",
+      "primary_container": "#0ea5e9",
+      "primary_fixed": "#c9e6ff",
+      "primary_fixed_dim": "#89ceff",
+      "secondary": "#505f76",
+      "secondary_container": "#d0e1fb",
+      "secondary_fixed": "#d3e4fe",
+      "secondary_fixed_dim": "#b7c8e1",
+      "surface": "#faf8ff",
+      "surface_bright": "#faf8ff",
+      "surface_container": "#eaedff",
+      "surface_container_high": "#e2e7ff",
+      "surface_container_highest": "#dae2fd",
+      "surface_container_low": "#f2f3ff",
+      "surface_container_lowest": "#ffffff",
+      "surface_dim": "#d2d9f4",
+      "surface_tint": "#006591",
+      "surface_variant": "#dae2fd",
+      "tertiary": "#5c5f61",
+      "tertiary_container": "#999c9e",
+      "tertiary_fixed": "#e0e3e5",
+      "tertiary_fixed_dim": "#c4c7c9"
+    },
+    "overrideNeutralColor": "#0f172a",
+    "overridePrimaryColor": "#0ea5e9",
+    "overrideSecondaryColor": "#64748b",
+    "overrideTertiaryColor": "#f8fafc",
+    "roundness": "ROUND_FOUR",
+    "spacing": {
+      "base": "4px",
+      "container-max": "1440px",
+      "lg": "24px",
+      "md": "16px",
+      "sidebar-width": "260px",
+      "sm": "8px",
+      "xl": "40px",
+      "xs": "4px"
+    },
+    "spacingScale": 2,
+    "typography": {
+      "body-base": {
+        "fontFamily": "Inter",
+        "fontSize": "16px",
+        "fontWeight": "400",
+        "lineHeight": "24px"
+      },
+      "body-sm": {
+        "fontFamily": "Inter",
+        "fontSize": "14px",
+        "fontWeight": "400",
+        "lineHeight": "20px"
+      },
+      "display-lg": {
+        "fontFamily": "Inter",
+        "fontSize": "32px",
+        "fontWeight": "700",
+        "letterSpacing": "-0.02em",
+        "lineHeight": "40px"
+      },
+      "display-lg-mobile": {
+        "fontFamily": "Inter",
+        "fontSize": "24px",
+        "fontWeight": "700",
+        "lineHeight": "32px"
+      },
+      "headline-md": {
+        "fontFamily": "Inter",
+        "fontSize": "20px",
+        "fontWeight": "600",
+        "lineHeight": "28px"
+      },
+      "label-caps": {
+        "fontFamily": "Inter",
+        "fontSize": "12px",
+        "fontWeight": "600",
+        "letterSpacing": "0.05em",
+        "lineHeight": "16px"
+      }
+    }
+  }
+}

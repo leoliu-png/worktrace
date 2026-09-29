@@ -1,0 +1,459 @@
+<!DOCTYPE html><html lang="zh-CN" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>API 密钥管理 - WorkTrace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ba1a1a",
+                        "outline": "#6e7881",
+                        "tertiary-fixed": "#e0e3e5",
+                        "inverse-surface": "#283044",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed": "#191c1e",
+                        "background": "#faf8ff",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#131b2e",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "on-secondary-fixed": "#0b1c30",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "outline-variant": "#bec8d2",
+                        "on-primary-container": "#003751",
+                        "tertiary-container": "#999c9e",
+                        "on-surface-variant": "#3e4850",
+                        "surface-bright": "#faf8ff",
+                        "surface": "#faf8ff",
+                        "secondary": "#505f76",
+                        "inverse-on-surface": "#eef0ff",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "surface-dim": "#d2d9f4",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#dae2fd",
+                        "surface-container": "#eaedff",
+                        "primary": "#006591",
+                        "on-tertiary-container": "#303436",
+                        "on-error": "#ffffff",
+                        "surface-container-highest": "#dae2fd",
+                        "primary-container": "#0ea5e9",
+                        "surface-container-low": "#f2f3ff",
+                        "on-surface": "#131b2e",
+                        "tertiary": "#5c5f61",
+                        "on-secondary-container": "#54647a",
+                        "primary-fixed": "#c9e6ff",
+                        "secondary-fixed": "#d3e4fe",
+                        "on-primary-fixed": "#001e2f",
+                        "surface-container-high": "#e2e7ff",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "secondary-container": "#d0e1fb",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#006591",
+                        "on-primary": "#ffffff",
+                        "primary-fixed-dim": "#89ceff",
+                        "inverse-primary": "#89ceff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "sm": "8px",
+                        "base": "4px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "xl": "40px",
+                        "container-max": "1440px",
+                        "md": "16px",
+                        "sidebar-width": "260px"
+                    },
+                    "fontFamily": {
+                        "body-base": ["Inter", "sans-serif"],
+                        "label-caps": ["Inter", "sans-serif"],
+                        "body-sm": ["Inter", "sans-serif"],
+                        "headline-md": ["Inter", "sans-serif"],
+                        "display-lg-mobile": ["Inter", "sans-serif"],
+                        "display-lg": ["Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "body-base": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "display-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.filled {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-[#F8FAFC] text-on-surface font-body-base antialiased flex h-screen overflow-hidden">
+<!-- SideNavBar Component (Desktop Only) -->
+<nav class="hidden md:flex bg-surface text-primary border-r border-outline-variant fixed left-0 top-0 h-full w-sidebar-width flex-col w-[260px] h-screen p-md">
+<!-- Brand Header -->
+<div class="mb-xl flex items-center gap-sm">
+<div class="w-10 h-10 rounded-full bg-primary-container text-on-primary flex items-center justify-center">
+<span class="material-symbols-outlined filled">work</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary m-0">工作台</h1>
+<p class="font-label-caps text-label-caps text-on-surface-variant m-0">企业级轨迹追踪</p>
+</div>
+</div>
+<!-- Main Navigation -->
+<div class="flex-1 overflow-y-auto">
+<ul class="space-y-sm"><li class="mb-md">
+<button class="w-full bg-primary-container text-on-primary hover:bg-primary-fixed-dim transition-colors py-sm rounded px-md font-body-sm text-body-sm flex items-center justify-center gap-sm active:scale-95 transition-transform">
+<span class="material-symbols-outlined">add</span>
+                新建日志
+            </button>
+</li>
+<li class="">
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 ease-in-out active:scale-95 transition-transform font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                        概览
+                    </a>
+</li>
+<li class="">
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 ease-in-out active:scale-95 transition-transform font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined">list_alt</span>
+                        所有日志
+                    </a>
+</li>
+<li class="">
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 ease-in-out active:scale-95 transition-transform font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined">person_search</span>
+                        我的日志
+                    </a>
+</li>
+<!-- ACTIVE NAV ITEM -->
+<li class="">
+<a class="flex items-center gap-md px-md py-sm rounded-lg bg-secondary-container text-on-secondary-container border-l-4 border-primary transition-all duration-200 ease-in-out active:scale-95 transition-transform font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined filled">vpn_key</span>
+                        API 密钥
+                    </a>
+</li>
+<li class="">
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 ease-in-out active:scale-95 transition-transform font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined">group</span>
+                        成员管理
+                    </a>
+</li>
+<li class="">
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 ease-in-out active:scale-95 transition-transform font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined">admin_panel_settings</span>
+                        权限控制
+                    </a>
+</li>
+<li class="">
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 ease-in-out active:scale-95 transition-transform font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined">settings_suggest</span>
+                        日志管理
+                    </a>
+</li>
+<li class="">
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 ease-in-out active:scale-95 transition-transform font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined">security</span>
+                        安全审计
+                    </a>
+</li>
+</ul>
+</div>
+<!-- CTA & Footer Nav -->
+<div class="mt-auto pt-lg border-outline-variant flex flex-col gap-sm">
+
+
+</div>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="flex-1 flex flex-col md:ml-sidebar-width w-full relative">
+<!-- TopNavBar Component -->
+<header class="bg-surface text-primary border-b border-outline-variant docked full-width top-0 flex justify-between items-center h-16 px-lg w-full sticky top-0 z-50">
+<!-- Mobile Burger & Logo -->
+<div class="flex items-center gap-md md:hidden">
+<button class="text-on-surface-variant p-sm rounded hover:bg-secondary-container/50 transition-all duration-200 ease-in-out">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<span class="text-headline-md font-headline-md text-primary">WorkTrace</span>
+</div>
+<!-- Search (On Left as per JSON) -->
+<div class="hidden md:flex items-center bg-surface-container-low rounded border border-outline-variant px-md py-sm w-64 focus-within:border-primary-container focus-within:ring-2 focus-within:ring-primary-container/20 transition-all">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px] mr-sm">search</span>
+<input class="bg-transparent border-none p-0 focus:ring-0 w-full font-body-sm text-body-sm text-on-surface outline-none placeholder:text-outline" placeholder="搜索..." type="text">
+</div>
+<!-- Right Actions -->
+<div class="flex items-center gap-lg">
+<!-- Navigation Links (Desktop) -->
+<nav class="hidden md:flex items-center gap-md">
+<a class="text-on-surface-variant hover:bg-secondary-container/50 px-sm py-xs rounded transition-all duration-200 ease-in-out font-body-base text-body-base" href="#">文档</a>
+<a class="text-on-surface-variant hover:bg-secondary-container/50 px-sm py-xs rounded transition-all duration-200 ease-in-out font-body-base text-body-base" href="#">更新日志</a>
+</nav>
+<!-- Actions -->
+<div class="flex items-center gap-sm">
+<button class="text-on-surface-variant hover:bg-secondary-container/50 p-sm rounded transition-all duration-200 ease-in-out font-body-sm text-body-sm hidden md:block">
+                        语言切换
+                    </button>
+<div class="h-4 w-px bg-outline-variant hidden md:block mx-xs"></div>
+<button class="text-on-surface-variant hover:bg-secondary-container/50 p-sm rounded transition-all duration-200 ease-in-out">
+<span class="material-symbols-outlined">dark_mode</span>
+</button>
+<button class="text-on-surface-variant hover:bg-secondary-container/50 p-sm rounded transition-all duration-200 ease-in-out">
+<span class="material-symbols-outlined">translate</span>
+</button>
+<!-- Avatar -->
+<button class="ml-sm rounded-full overflow-hidden border border-outline-variant w-8 h-8 focus:outline-none focus:ring-2 focus:ring-primary-container">
+<img alt="User Avatar" class="w-full h-full object-cover" data-alt="A professional corporate headshot of a person looking forward, neutral lighting, minimalist background. Clean modern aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZOZkgSjxFj0iP2oEJJWPv8ax3gObTCzJZqQ3n1JSMsdR_n722TBRblUXqKLIsvm26wXeS3u79OFNnjP7gsfwocpHRgGJOjbJ_k7KRYjCKYsU1LzaK9rReTUkJeGGIP8UF-TF-71XL1oTm07Ol3cui_j8036cjjqplcqPRhiAhkXSb1rcNg7GVRNjNRIHnriv7UjE5HCK0EtW8xw3Fj2DeY2eGh0X_s5y2RlIPRoJCa5X6S0dMEWtfjg">
+</button>
+</div>
+</div>
+</header>
+<!-- Page Canvas -->
+<main class="flex-1 overflow-y-auto p-md md:p-lg lg:p-xl bg-[#F8FAFC]">
+<div class="max-w-container-max mx-auto space-y-lg">
+<!-- Page Header & Actions -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-md mb-lg">
+<div>
+<h2 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-on-surface m-0 mb-xs">API 密钥管理</h2>
+<p class="font-body-base text-body-base text-on-surface-variant m-0">创建、管理和吊销用于访问工作台 API 的密钥。</p>
+</div>
+<div class="flex items-center gap-sm">
+<button class="flex items-center gap-xs px-md py-sm bg-transparent border border-outline-variant text-on-surface rounded hover:bg-surface-container-high transition-colors font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[18px]">article</span>
+                            API 文档
+                        </button>
+
+</div>
+</div>
+<!-- Bento Grid / Cards Area -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+<!-- Stats Card (Glassmorphism inspired, Level 1 elevation) -->
+<div class="bg-white rounded-lg border border-outline-variant p-lg flex flex-col justify-between hover:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] transition-shadow">
+<div class="flex justify-between items-start mb-md">
+<div class="font-label-caps text-label-caps text-on-surface-variant">活跃密钥</div>
+<span class="material-symbols-outlined text-primary-container bg-primary-container/10 p-sm rounded-full">key</span>
+</div>
+<div>
+<div class="font-display-lg text-display-lg text-on-surface">3</div>
+<div class="font-body-sm text-body-sm text-outline mt-xs">总计 5 个分配额度</div>
+</div>
+</div>
+<!-- Security Alert Card -->
+<div class="lg:col-span-2 bg-gradient-to-br from-white to-error-container/20 rounded-lg border border-outline-variant p-lg flex items-center gap-md hover:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] transition-shadow relative overflow-hidden">
+<div class="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
+<span class="material-symbols-outlined text-[120px]">security</span>
+</div>
+<div class="bg-error/10 p-md rounded-full text-error shrink-0">
+<span class="material-symbols-outlined text-[24px]">warning</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface m-0">安全提示</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">请勿在客户端代码或公共代码库中硬编码 API 密钥。建议每 90 天轮换一次密钥以确保系统安全。</p>
+</div>
+</div>
+</div>
+<!-- Data Table (Card Level 1) -->
+<div class="bg-white rounded-lg border border-outline-variant overflow-hidden">
+<!-- Table Toolbar -->
+<div class="px-lg py-md border-b border-outline-variant flex flex-col sm:flex-row justify-between items-center gap-md bg-surface-bright">
+<div class="font-headline-md text-headline-md text-on-surface">您的密钥</div>
+<div class="flex items-center bg-white rounded border border-outline-variant px-sm py-xs w-full sm:w-auto focus-within:border-primary-container focus-within:ring-2 focus-within:ring-primary-container/20 transition-all">
+<span class="material-symbols-outlined text-on-surface-variant text-[18px] mr-xs">search</span>
+<input class="bg-transparent border-none p-0 focus:ring-0 w-full font-body-sm text-body-sm text-on-surface outline-none placeholder:text-outline text-sm" placeholder="搜索名称或前缀..." type="text">
+</div>
+<button class="flex items-center gap-xs px-md py-sm bg-primary-container text-on-primary rounded hover:bg-primary-fixed-dim transition-colors font-body-sm text-body-sm active:scale-95" onclick="document.getElementById('create-key-modal').classList.remove('hidden')"><span class="material-symbols-outlined text-[18px]">add</span>创建密钥</button></div>
+<!-- Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant bg-surface-container-lowest">
+<th class="px-lg py-sm font-label-caps text-label-caps text-on-surface-variant font-semibold">密钥名称</th>
+<th class="px-lg py-sm font-label-caps text-label-caps text-on-surface-variant font-semibold">前缀</th>
+<th class="px-lg py-sm font-label-caps text-label-caps text-on-surface-variant font-semibold">创建日期</th>
+<th class="px-lg py-sm font-label-caps text-label-caps text-on-surface-variant font-semibold">最后使用</th>
+<th class="px-lg py-sm font-label-caps text-label-caps text-on-surface-variant font-semibold">状态</th>
+<th class="px-lg py-sm font-label-caps text-label-caps text-on-surface-variant font-semibold text-right">操作</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm text-on-surface divide-y divide-outline-variant">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-lg py-md">
+<div class="font-medium text-on-surface">生产环境同步 (Prod-Sync)</div>
+<div class="text-outline text-[12px] mt-xs">用于 ERP 数据集成</div>
+</td>
+<td class="px-lg py-md font-mono text-on-surface-variant bg-surface-bright px-xs py-xs rounded">wt_live_abcd...</td>
+<td class="px-lg py-md text-on-surface-variant">2023-10-15</td>
+<td class="px-lg py-md text-on-surface-variant">今天 14:30</td>
+<td class="px-lg py-md">
+<span class="inline-flex items-center gap-xs px-sm py-xs rounded bg-[#10B981]/10 text-[#10B981] font-label-caps text-label-caps">
+<span class="w-2 h-2 rounded-full bg-[#10B981]"></span> 正常
+                                        </span>
+</td>
+<td class="px-lg py-md text-right"><div class="flex items-center justify-end gap-sm opacity-0 group-hover:opacity-100 transition-opacity"><button class="text-on-surface-variant hover:text-primary transition-colors p-xs rounded flex items-center gap-xs" title="回显"><span class="material-symbols-outlined text-[18px]">visibility</span></button><button class="text-on-surface-variant hover:text-primary transition-colors p-xs rounded flex items-center gap-xs" title="禁用"><span class="material-symbols-outlined text-[18px]">block</span></button><button class="text-on-surface-variant hover:text-error transition-colors p-xs rounded flex items-center gap-xs" onclick="document.getElementById('revoke-modal').classList.remove('hidden')" title="删除"><span class="material-symbols-outlined text-[18px]">delete</span></button></div></td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-lg py-md">
+<div class="font-medium text-on-surface">测试环境 (Dev-Staging)</div>
+<div class="text-outline text-[12px] mt-xs">开发团队测试使用</div>
+</td>
+<td class="px-lg py-md font-mono text-on-surface-variant bg-surface-bright px-xs py-xs rounded">wt_test_efgh...</td>
+<td class="px-lg py-md text-on-surface-variant">2023-11-02</td>
+<td class="px-lg py-md text-on-surface-variant">2 天前</td>
+<td class="px-lg py-md">
+<span class="inline-flex items-center gap-xs px-sm py-xs rounded bg-[#10B981]/10 text-[#10B981] font-label-caps text-label-caps">
+<span class="w-2 h-2 rounded-full bg-[#10B981]"></span> 正常
+                                        </span>
+</td>
+<td class="px-lg py-md text-right"><div class="flex items-center justify-end gap-sm opacity-0 group-hover:opacity-100 transition-opacity"><button class="text-on-surface-variant hover:text-primary transition-colors p-xs rounded flex items-center gap-xs" title="回显"><span class="material-symbols-outlined text-[18px]">visibility</span></button><button class="text-on-surface-variant hover:text-primary transition-colors p-xs rounded flex items-center gap-xs" title="禁用"><span class="material-symbols-outlined text-[18px]">block</span></button><button class="text-on-surface-variant hover:text-error transition-colors p-xs rounded flex items-center gap-xs" onclick="document.getElementById('revoke-modal').classList.remove('hidden')" title="删除"><span class="material-symbols-outlined text-[18px]">delete</span></button></div></td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors group opacity-75">
+<td class="px-lg py-md">
+<div class="font-medium text-on-surface">旧版报表系统 (Legacy-Reports)</div>
+<div class="text-outline text-[12px] mt-xs">已弃用</div>
+</td>
+<td class="px-lg py-md font-mono text-on-surface-variant bg-surface-bright px-xs py-xs rounded">wt_live_ijkl...</td>
+<td class="px-lg py-md text-on-surface-variant">2022-05-20</td>
+<td class="px-lg py-md text-on-surface-variant">2023-12-01</td>
+<td class="px-lg py-md">
+<span class="inline-flex items-center gap-xs px-sm py-xs rounded bg-outline-variant/20 text-on-surface-variant font-label-caps text-label-caps">
+<span class="w-2 h-2 rounded-full bg-outline-variant"></span> 已禁用
+                                        </span>
+</td>
+<td class="px-lg py-md text-right"><div class="flex items-center justify-end gap-sm opacity-0 group-hover:opacity-100 transition-opacity"><button class="text-on-surface-variant hover:text-primary transition-colors p-xs rounded flex items-center gap-xs" title="回显"><span class="material-symbols-outlined text-[18px]">visibility</span></button><button class="text-on-surface-variant hover:text-primary transition-colors p-xs rounded flex items-center gap-xs" title="启用"><span class="material-symbols-outlined text-[18px]">play_arrow</span></button><button class="text-on-surface-variant hover:text-error transition-colors p-xs rounded flex items-center gap-xs" onclick="document.getElementById('revoke-modal').classList.remove('hidden')" title="删除"><span class="material-symbols-outlined text-[18px]">delete</span></button></div></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Create Key Modal (Level 3 Elevation) -->
+<div class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-on-surface/50 backdrop-blur-sm p-md" id="create-key-modal">
+<div class="bg-white rounded-lg shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1)] w-full max-w-md overflow-hidden transform transition-all">
+<div class="px-lg py-md border-b border-outline-variant flex justify-between items-center">
+<h3 class="font-headline-md text-headline-md text-on-surface m-0">创建新 API 密钥</h3>
+<button class="text-on-surface-variant hover:text-on-surface rounded p-xs" onclick="document.getElementById('create-key-modal').classList.add('hidden')">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="p-lg space-y-md">
+<div>
+<label class="block font-label-caps text-label-caps text-[#64748B] mb-xs">密钥名称</label>
+<input class="w-full bg-white border border-outline-variant rounded px-md py-sm font-body-sm text-body-sm focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none transition-all" placeholder="例如：前端应用集成" type="text">
+</div>
+<div>
+<label class="block font-label-caps text-label-caps text-[#64748B] mb-xs">环境</label>
+<select class="w-full bg-white border border-outline-variant rounded px-md py-sm font-body-sm text-body-sm focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 outline-none transition-all appearance-none">
+<option value="live">生产环境 (Live)</option>
+<option value="test">测试环境 (Test)</option>
+</select>
+</div>
+<div class="bg-surface-container p-sm rounded border border-outline-variant/50 text-[12px] text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] inline-block align-text-bottom mr-xs">info</span>
+                    创建后，密钥将只显示一次，请妥善保存。
+                </div>
+</div>
+<div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-md">
+<button class="px-md py-sm bg-transparent text-on-surface border border-transparent hover:bg-surface-container-high rounded font-body-sm text-body-sm transition-colors" onclick="document.getElementById('create-key-modal').classList.add('hidden')">
+                    取消
+                </button>
+<button class="px-md py-sm bg-primary-container text-on-primary rounded hover:bg-primary-fixed-dim font-body-sm text-body-sm transition-colors" onclick="document.getElementById('create-key-modal').classList.add('hidden'); document.getElementById('echo-key-modal').classList.remove('hidden')">
+                    生成密钥
+                </button>
+</div>
+</div>
+</div>
+<!-- Echo Key Modal -->
+<div class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-on-surface/50 backdrop-blur-sm p-md" id="echo-key-modal">
+<div class="bg-white rounded-lg shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1)] w-full max-w-lg overflow-hidden transform transition-all">
+<div class="p-lg pb-0 flex items-center gap-md mb-md">
+<div class="w-12 h-12 rounded-full bg-[#10B981]/10 text-[#10B981] flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[28px]">check_circle</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface m-0">密钥创建成功</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">请立即复制并在安全的地方保存您的密钥。为了安全起见，我们不会再次显示它。</p>
+</div>
+</div>
+<div class="px-lg py-md">
+<label class="block font-label-caps text-label-caps text-[#64748B] mb-xs">新 API 密钥</label>
+<div class="flex items-center gap-sm bg-surface-container-low border border-outline-variant rounded p-sm">
+<code class="flex-1 font-mono text-[14px] text-on-surface overflow-x-auto whitespace-nowrap">wt_live_8f9e2d1c4b5a69780f1e2d3c4b5a6978</code>
+<button class="bg-white border border-outline-variant hover:bg-surface-container-high text-on-surface p-sm rounded flex items-center gap-xs font-body-sm text-body-sm transition-colors shrink-0">
+<span class="material-symbols-outlined text-[18px]">content_copy</span>
+                        复制
+                    </button>
+</div>
+</div>
+<div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end">
+<button class="px-lg py-sm bg-primary-container text-on-primary rounded hover:bg-primary-fixed-dim font-body-sm text-body-sm transition-colors" onclick="document.getElementById('echo-key-modal').classList.add('hidden')">
+                    我已保存，关闭
+                </button>
+</div>
+</div>
+</div>
+<!-- Revoke Confirmation Modal -->
+<div class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-on-surface/50 backdrop-blur-sm p-md" id="revoke-modal">
+<div class="bg-white rounded-lg shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1)] w-full max-w-md overflow-hidden transform transition-all">
+<div class="p-lg">
+<div class="flex flex-col items-center text-center">
+<div class="w-12 h-12 rounded-full bg-error/10 text-error flex items-center justify-center mb-md">
+<span class="material-symbols-outlined text-[24px]">warning</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface m-0 mb-sm">确认吊销密钥？</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">吊销后，所有使用此密钥的应用程序将立即失去访问权限。此操作<strong class="text-error font-semibold">不可撤销</strong>。</p>
+</div>
+<div class="mt-lg">
+<label class="block font-label-caps text-label-caps text-[#64748B] mb-xs">输入 "REVOKE" 以确认</label>
+<input class="w-full bg-white border border-outline-variant rounded px-md py-sm font-body-sm text-body-sm focus:border-error focus:ring-2 focus:ring-error/20 outline-none transition-all" type="text">
+</div>
+</div>
+<div class="px-lg py-md border-t border-outline-variant bg-surface-bright flex justify-end gap-md">
+<button class="px-md py-sm bg-transparent text-on-surface border border-transparent hover:bg-surface-container-high rounded font-body-sm text-body-sm transition-colors" onclick="document.getElementById('revoke-modal').classList.add('hidden')">
+                    取消
+                </button>
+<button class="px-md py-sm bg-error text-on-error rounded hover:bg-[#a01616] font-body-sm text-body-sm transition-colors shadow-sm" onclick="document.getElementById('revoke-modal').classList.add('hidden')">
+                    确认吊销
+                </button>
+</div>
+</div>
+</div>
+
+
+</body></html>

@@ -1,0 +1,358 @@
+<!DOCTYPE html><html lang="zh-CN" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>工作台 - WorkTrace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                            "error": "#ba1a1a",
+                            "outline": "#6e7881",
+                            "tertiary-fixed": "#e0e3e5",
+                            "inverse-surface": "#283044",
+                            "on-tertiary": "#ffffff",
+                            "on-tertiary-fixed": "#191c1e",
+                            "background": "#faf8ff",
+                            "on-secondary": "#ffffff",
+                            "on-background": "#131b2e",
+                            "on-secondary-fixed-variant": "#38485d",
+                            "on-tertiary-fixed-variant": "#444749",
+                            "on-secondary-fixed": "#0b1c30",
+                            "tertiary-fixed-dim": "#c4c7c9",
+                            "outline-variant": "#bec8d2",
+                            "on-primary-container": "#003751",
+                            "tertiary-container": "#999c9e",
+                            "on-surface-variant": "#3e4850",
+                            "surface-bright": "#faf8ff",
+                            "surface": "#faf8ff",
+                            "secondary": "#505f76",
+                            "inverse-on-surface": "#eef0ff",
+                            "secondary-fixed-dim": "#b7c8e1",
+                            "surface-dim": "#d2d9f4",
+                            "surface-container-lowest": "#ffffff",
+                            "surface-variant": "#dae2fd",
+                            "surface-container": "#eaedff",
+                            "primary": "#006591",
+                            "on-tertiary-container": "#303436",
+                            "on-error": "#ffffff",
+                            "surface-container-highest": "#dae2fd",
+                            "primary-container": "#0ea5e9",
+                            "surface-container-low": "#f2f3ff",
+                            "on-surface": "#131b2e",
+                            "tertiary": "#5c5f61",
+                            "on-secondary-container": "#54647a",
+                            "primary-fixed": "#c9e6ff",
+                            "secondary-fixed": "#d3e4fe",
+                            "on-primary-fixed": "#001e2f",
+                            "surface-container-high": "#e2e7ff",
+                            "on-primary-fixed-variant": "#004c6e",
+                            "secondary-container": "#d0e1fb",
+                            "error-container": "#ffdad6",
+                            "on-error-container": "#93000a",
+                            "surface-tint": "#006591",
+                            "on-primary": "#ffffff",
+                            "primary-fixed-dim": "#89ceff",
+                            "inverse-primary": "#89ceff"
+                    },
+                    "borderRadius": {
+                            "DEFAULT": "0.125rem",
+                            "lg": "0.25rem",
+                            "xl": "0.5rem",
+                            "full": "0.75rem"
+                    },
+                    "spacing": {
+                            "sm": "8px",
+                            "base": "4px",
+                            "xs": "4px",
+                            "lg": "24px",
+                            "xl": "40px",
+                            "container-max": "1440px",
+                            "md": "16px",
+                            "sidebar-width": "260px"
+                    },
+                    "fontFamily": {
+                            "body-base": ["Inter"],
+                            "label-caps": ["Inter"],
+                            "body-sm": ["Inter"],
+                            "headline-md": ["Inter"],
+                            "display-lg-mobile": ["Inter"],
+                            "display-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                            "body-base": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                            "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                            "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                            "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                            "display-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                            "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #F8FAFC; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="font-body-base text-body-base text-on-surface antialiased flex h-screen overflow-hidden">
+<!-- SideNavBar Component -->
+<nav class="bg-surface dark:bg-inverse-surface fixed left-0 top-0 h-full w-sidebar-width border-r border-outline-variant dark:border-outline flex flex-col w-[260px] h-screen p-md z-40 hidden md:flex">
+<div class="flex items-center gap-sm mb-xl px-sm">
+<span class="material-symbols-outlined text-primary" data-weight="fill" style="font-variation-settings: 'FILL' 1;">work_history</span>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary">工作台</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">企业级轨迹追踪</p>
+</div>
+</div>
+
+<button class="bg-primary-container text-on-primary-container font-body-sm text-body-sm rounded flex items-center justify-center gap-xs py-sm mb-lg transition-transform active:scale-95 hover:bg-primary/20 w-full"><span class="material-symbols-outlined text-[18px]">add</span>新建日志</button><ul class="flex flex-col gap-xs flex-grow">
+<li class="">
+<a class="bg-secondary-container dark:bg-on-secondary-fixed-variant text-on-secondary-container dark:text-secondary-fixed border-l-4 border-primary font-body-sm text-body-sm flex items-center gap-sm px-sm py-sm rounded-r transition-all duration-200 ease-in-out hover:bg-surface-container-high dark:hover:bg-surface-container-highest" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                    概览
+                </a>
+</li>
+<li class="">
+<a class="text-on-surface-variant dark:text-outline-variant font-body-sm text-body-sm flex items-center gap-sm px-sm py-sm rounded-r border-l-4 border-transparent transition-all duration-200 ease-in-out hover:bg-surface-container-high dark:hover:bg-surface-container-highest" href="#">
+<span class="material-symbols-outlined">list_alt</span>
+                    所有日志
+                </a>
+</li>
+<li class="">
+<a class="text-on-surface-variant dark:text-outline-variant font-body-sm text-body-sm flex items-center gap-sm px-sm py-sm rounded-r border-l-4 border-transparent transition-all duration-200 ease-in-out hover:bg-surface-container-high dark:hover:bg-surface-container-highest" href="#">
+<span class="material-symbols-outlined">person_search</span>
+                    我的日志
+                </a>
+</li>
+<li class="">
+<a class="text-on-surface-variant dark:text-outline-variant font-body-sm text-body-sm flex items-center gap-sm px-sm py-sm rounded-r border-l-4 border-transparent transition-all duration-200 ease-in-out hover:bg-surface-container-high dark:hover:bg-surface-container-highest" href="#">
+<span class="material-symbols-outlined">vpn_key</span>
+                    API 密钥
+                </a>
+</li>
+<li class="">
+<a class="text-on-surface-variant dark:text-outline-variant font-body-sm text-body-sm flex items-center gap-sm px-sm py-sm rounded-r border-l-4 border-transparent transition-all duration-200 ease-in-out hover:bg-surface-container-high dark:hover:bg-surface-container-highest" href="#">
+<span class="material-symbols-outlined">group</span>
+                    成员管理
+                </a>
+</li>
+<li class="">
+<a class="text-on-surface-variant dark:text-outline-variant font-body-sm text-body-sm flex items-center gap-sm px-sm py-sm rounded-r border-l-4 border-transparent transition-all duration-200 ease-in-out hover:bg-surface-container-high dark:hover:bg-surface-container-highest" href="#">
+<span class="material-symbols-outlined">admin_panel_settings</span>
+                    权限控制
+                </a>
+</li>
+<li class="">
+<a class="text-on-surface-variant dark:text-outline-variant font-body-sm text-body-sm flex items-center gap-sm px-sm py-sm rounded-r border-l-4 border-transparent transition-all duration-200 ease-in-out hover:bg-surface-container-high dark:hover:bg-surface-container-highest" href="#">
+<span class="material-symbols-outlined">settings_suggest</span>
+                    日志管理
+                </a>
+</li>
+<li class="">
+<a class="text-on-surface-variant dark:text-outline-variant font-body-sm text-body-sm flex items-center gap-sm px-sm py-sm rounded-r border-l-4 border-transparent transition-all duration-200 ease-in-out hover:bg-surface-container-high dark:hover:bg-surface-container-highest" href="#">
+<span class="material-symbols-outlined">security</span>
+                    安全审计
+                </a>
+</li>
+</ul>
+
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 md:ml-sidebar-width h-full overflow-y-auto flex flex-col relative w-full">
+<!-- TopNavBar Component (Mobile Only) -->
+<nav class="bg-surface dark:bg-inverse-surface border-b border-outline-variant dark:border-outline flex justify-between items-center h-16 px-lg w-full sticky top-0 z-50 md:hidden">
+<div class="flex items-center gap-sm">
+<h1 class="text-headline-md font-headline-md text-primary dark:text-primary-fixed-dim">WorkTrace</h1>
+</div>
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-all duration-200 ease-in-out cursor-pointer">menu</span>
+</div>
+</nav>
+<div class="p-lg max-w-container-max mx-auto w-full space-y-lg flex-grow">
+<!-- Header & Filters -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-md">
+<div>
+<h2 class="font-display-lg text-display-lg text-on-surface">概览控制台</h2>
+<p class="font-body-base text-body-base text-on-surface-variant">监控团队工作进展与日志统计</p>
+</div>
+<div class="flex items-center gap-sm bg-surface-container-lowest border border-outline-variant rounded p-xs">
+<span class="material-symbols-outlined text-on-surface-variant ml-xs">calendar_month</span>
+<select class="bg-transparent border-none font-body-sm text-body-sm text-on-surface focus:ring-0 cursor-pointer">
+<option>本周 (最近7天)</option>
+<option>本月 (最近30天)</option>
+<option>今年 (最近365天)</option>
+</select>
+</div>
+</div>
+<!-- Stats Bento Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-md">
+<!-- Stat Card 1 -->
+<div class="glass-card rounded-lg p-md flex flex-col justify-between">
+<div class="flex justify-between items-start mb-sm">
+<span class="font-label-caps text-label-caps text-on-surface-variant">总日志数</span>
+<div class="bg-primary/10 p-xs rounded-full">
+<span class="material-symbols-outlined text-primary text-[20px]">description</span>
+</div>
+</div>
+<div class="flex items-baseline gap-sm">
+<span class="font-display-lg text-display-lg text-on-surface">12,450</span>
+<span class="font-label-caps text-label-caps text-emerald-600 flex items-center"><span class="material-symbols-outlined text-[14px]">arrow_upward</span> 12%</span>
+</div>
+</div>
+<!-- Stat Card 2 -->
+<div class="glass-card rounded-lg p-md flex flex-col justify-between">
+<div class="flex justify-between items-start mb-sm">
+<span class="font-label-caps text-label-caps text-on-surface-variant">活跃提交人数</span>
+<div class="bg-secondary/10 p-xs rounded-full">
+<span class="material-symbols-outlined text-secondary text-[20px]">group_add</span>
+</div>
+</div>
+<div class="flex items-baseline gap-sm">
+<span class="font-display-lg text-display-lg text-on-surface">143</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">/ 150</span>
+</div>
+</div>
+<!-- Stat Card 3 -->
+<div class="glass-card rounded-lg p-md flex flex-col justify-between">
+<div class="flex justify-between items-start mb-sm">
+<span class="font-label-caps text-label-caps text-on-surface-variant">今日提交数</span>
+<div class="bg-tertiary/10 p-xs rounded-full">
+<span class="material-symbols-outlined text-tertiary text-[20px]">today</span>
+</div>
+</div>
+<div class="flex items-baseline gap-sm">
+<span class="font-display-lg text-display-lg text-on-surface">328</span>
+<span class="font-label-caps text-label-caps text-rose-600 flex items-center"><span class="material-symbols-outlined text-[14px]">arrow_downward</span> 3%</span>
+</div>
+</div>
+<!-- Stat Card 4 -->
+<div class="glass-card rounded-lg p-md flex flex-col justify-between">
+<div class="flex justify-between items-start mb-sm">
+<span class="font-label-caps text-label-caps text-on-surface-variant">最近提交时间</span>
+<div class="bg-outline-variant/20 p-xs rounded-full">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">update</span>
+</div>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md text-on-surface mt-sm">2 分钟前</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">张伟 (研发部)</span>
+</div>
+</div>
+</div>
+<!-- Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-md">
+<!-- Recent Logs (Takes up 2 columns on lg) -->
+<div class="lg:col-span-2 glass-card rounded-xl flex flex-col">
+<div class="p-md border-b border-outline-variant flex justify-between items-center">
+<h3 class="font-headline-md text-headline-md text-on-surface">近期日志预览</h3>
+<button class="font-body-sm text-body-sm text-primary hover:underline">查看全部</button>
+</div>
+<div class="p-md flex-grow overflow-y-auto">
+<ul class="space-y-sm">
+<!-- Log Item -->
+<li class="bg-surface-container-lowest rounded-lg p-sm border border-outline-variant flex flex-col sm:flex-row gap-sm items-start sm:items-center hover:shadow-sm transition-shadow">
+<img class="w-10 h-10 rounded-full object-cover shrink-0" data-alt="A small circular avatar placeholder image showing a professional corporate headshot in a well-lit office setting. The style is modern, bright, and clean, fitting a light-mode enterprise dashboard." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAljunvR1BUStCFdszzAsKbAx8kKcWCzmS1sM1Hl_31u64saPjd8FHRs0qWfoQZ2CO7Bdfmpn5xp6x0vV0F8zfS-dJ2C7zS-hHy46aq7UXK16NXbYaJdlL8d84eIoGE_dBcfO2j0D3-xsBssygFsPVU27FkYeUKfmAwE1OneblgSh7-pIJgxq5_426zkneMOLWCXgd1QkMyvY2xBZahBRzu_ZXLr62tu7biEc-HAHalC6x6v23wNfnlrg">
+<div class="flex-grow">
+<div class="flex justify-between items-center mb-xs">
+<span class="font-body-base text-body-base font-semibold text-on-surface">完成前端架构升级方案</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">10:45 AM</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">详细梳理了现有框架的痛点，并提出了基于最新微前端方案的演进路线图。</p>
+</div>
+<span class="bg-emerald-100 text-emerald-800 font-label-caps text-label-caps px-2 py-1 rounded shrink-0">已完成</span>
+</li>
+<!-- Log Item -->
+<li class="bg-surface-container-lowest rounded-lg p-sm border border-outline-variant flex flex-col sm:flex-row gap-sm items-start sm:items-center hover:shadow-sm transition-shadow">
+<img class="w-10 h-10 rounded-full object-cover shrink-0" data-alt="Another small circular avatar placeholder image showing a diverse professional team member in a crisp, modern corporate environment, maintaining the light-mode UI aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCt_ZK4x2E-nixilUVa-2WmnfOb5x5e3tTTznxmTu0nkNgerj8-Vr7UYCE6KhMp4d6C6QQSjj3vgOS2Q--nJjLK6zk_CCb_56XR2VHLftfuzZnadkQ51HrSy02EK8FHrhF6aZIGMhyVL3HTBTu8phqPlWaS75GYC6KknLxXAa6vaUL4R75Wqx0QjBUwUfe5rq7VIZ9PsJEggY-aK0winw66zPRXQ2mXaF6XzTeSvXvIMgfYLFt1vjlSUw">
+<div class="flex-grow">
+<div class="flex justify-between items-center mb-xs">
+<span class="font-body-base text-body-base font-semibold text-on-surface">修复生产环境数据库死锁问题</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">09:12 AM</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">定位到由于并发事务导致的锁表情况，已紧急发布补丁并优化索引。</p>
+</div>
+<span class="bg-blue-100 text-blue-800 font-label-caps text-label-caps px-2 py-1 rounded shrink-0">进行中</span>
+</li>
+<!-- Log Item -->
+<li class="bg-surface-container-lowest rounded-lg p-sm border border-outline-variant flex flex-col sm:flex-row gap-sm items-start sm:items-center hover:shadow-sm transition-shadow">
+<img class="w-10 h-10 rounded-full object-cover shrink-0" data-alt="A third small circular avatar placeholder image for a user profile, matching the professional, bright, light-mode enterprise software aesthetic of the surrounding UI." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTwZ4mNUSnTFhKT5FHwJWvlfAoLAItjKOrCUl-DGm99kfX5a3yKakZaTH4MPSX2EvM2R2DHzD8teyUZOCo99rSlW9TUSUShOo-qiG8kceSwm_MJuitO4iddNbLbc9XazWRtca0Zg7QPpK1wLSXrZi5_rF6oy5hHRtVod3QOeoMWjsewfk6GwxFxi0bERCD46cYIHA_LulSSpTuStQUDThplkluuiEknpbMez2qZBg129yYm7Mk7TUOCQ">
+<div class="flex-grow">
+<div class="flex justify-between items-center mb-xs">
+<span class="font-body-base text-body-base font-semibold text-on-surface">Q3 营销物料设计定稿</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">昨天</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">包含官网Banner、社交媒体海报及宣传册源文件，已同步至设计规范库。</p>
+</div>
+<span class="bg-emerald-100 text-emerald-800 font-label-caps text-label-caps px-2 py-1 rounded shrink-0">已完成</span>
+</li>
+</ul>
+</div>
+</div>
+<!-- Top Submitters List -->
+<div class="glass-card rounded-xl flex flex-col">
+<div class="p-md border-b border-outline-variant">
+<h3 class="font-headline-md text-headline-md text-on-surface">按人员提交排行</h3>
+</div>
+<div class="p-md flex-grow overflow-y-auto">
+<ul class="space-y-md">
+<!-- Rank Item -->
+<li class="flex items-center gap-sm">
+<span class="font-headline-md text-headline-md text-primary font-bold w-6 text-center">1</span>
+<img class="w-8 h-8 rounded-full object-cover" data-alt="Placeholder image for the top-ranked user's avatar, depicted in a modern, clean, light-mode enterprise style, portraying professional success." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAK4iQeR5IP1RIGvKq64p5_7_B1lpYI8ZA1YlvXv2rfPsojoZvZBQ3aQ7TB9C2gw3cU7PUv_zuZBdW2UIPm-PfrpV7Lx7iduzv1rKw18HvkLWjTiifhxkTaAvkHLgSR0Gmj8_R1kFGi9txLUAH7UPcjQZf6d-9dwCMWHq-D5tjXAli4mLY9bvl5nRGKXTMpd65fJQSw3371lFP5dtjnqamVVAlAqG3pNMu65e6x3UCoIU2OVk6352YaHQ">
+<div class="flex-grow">
+<p class="font-body-sm text-body-sm font-semibold text-on-surface">李娜</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant">设计部</p>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold">45 篇</span>
+</li>
+<!-- Rank Item -->
+<li class="flex items-center gap-sm">
+<span class="font-headline-md text-headline-md text-secondary font-bold w-6 text-center">2</span>
+<img class="w-8 h-8 rounded-full object-cover" data-alt="Placeholder image for the second-ranked user's avatar, maintaining the bright, professional, and structured aesthetic of the enterprise dashboard." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAgKA4aXcoTydfgWOINx8wkQX5ynIUa1lQfEhtMWl8tJ6nlIau67MYSwoaLN7yygpKNHcBY-I_5-eNCvbh3wVXmi5M0k2BpBaLGXtSuaqnLDUYZzBxOY-ihXGxxXa5IhQpz00SRD3kqiK0UxJ_Od6bte7THXPqq0iUohw9mqJ3S2UXvLkI7br9dqiyWsXBf5j0K9v0Y0r1lFvSZRJn7w36IwPH19Onz-2_1rhxWgZ9FP00MUmXqOIUr9w">
+<div class="flex-grow">
+<p class="font-body-sm text-body-sm font-semibold text-on-surface">王强</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant">研发部</p>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold">38 篇</span>
+</li>
+<!-- Rank Item -->
+<li class="flex items-center gap-sm">
+<span class="font-headline-md text-headline-md text-tertiary font-bold w-6 text-center">3</span>
+<img class="w-8 h-8 rounded-full object-cover" data-alt="Placeholder image for the third-ranked user's avatar, suitable for a corporate light-mode UI, clear and minimal." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMG4hwGvCn29TobCrOjFHNzSs2rBZM7tN-uuSnwWqF8n41xRsH2KUgHANDOEEaZCdQ-sIFA7AydpGUeyKyawc2ZG8YzFrq9JWJxkIrHPS-B5xxDf33c5FvTp3urPg766qOGm4wZgQ0HTdSw_TsVEjpOfwhW9C5kl30Emss0aln9J0ETykU6-cOpq7iWtSP3_zKzlxZUe5ffUAOkRqo-8XkT0OiVMx21WJruru6wyD7amH2-kKEGN8ZlQ">
+<div class="flex-grow">
+<p class="font-body-sm text-body-sm font-semibold text-on-surface">赵敏</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant">产品部</p>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold">32 篇</span>
+</li>
+<!-- Rank Item -->
+<li class="flex items-center gap-sm">
+<span class="font-body-base text-body-base text-on-surface-variant font-bold w-6 text-center">4</span>
+<img class="w-8 h-8 rounded-full object-cover" data-alt="Placeholder image for a user avatar in the rankings, matching the overall professional and minimalist design system requirements." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBLNkNNr_T-Btb980w9st6m6lqmQvpgvtzRRwIYeoVV7X4Xe8E7tPAl9OhHWI8-gq8bv9ql2LchWL2v8zu7yr0OmoqaSwBKRLraSESLtJha2xk9HFxFA9BeJXxmWkMxVshMjXAcmGKAW-_sIBdmzNFoVpkGuANtTIgGK1-pkcuOiahVUTBzlD6cKdl12B6SnMq8XLJSQn1GN5HQM3koa30InMUjcU97D6qi9DW82Jmj7B58OOu3eEyIIQ">
+<div class="flex-grow">
+<p class="font-body-sm text-body-sm font-semibold text-on-surface">孙涛</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant">市场部</p>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold">29 篇</span>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</main>
+
+
+</body></html>

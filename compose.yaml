@@ -1,0 +1,28 @@
+services:
+  worktrace:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+    image: worktrace:latest
+    container_name: worktrace
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:16063:3000"
+    volumes:
+      - worktrace_data:/var/lib/worktrace
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  worktrace_data:
+    name: worktrace_data

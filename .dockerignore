@@ -1,0 +1,13 @@
+node_modules
+.next
+.vite
+.env
+.env.*
+!.env.example
+*.db
+uploads
+.private
+.git
+.gitignore
+docs
+stitch-worktrace/screenshots

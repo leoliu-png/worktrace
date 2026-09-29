@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url = env("DATABASE_URL")
+}
+
+enum Role {
+  MEMBER
+  ADMIN
+}
+
+enum LogSource {
+  WEB
+  API
+  MCP
+}
+
+enum KeyStatus {
+  ACTIVE
+  DISABLED
+  REVOKED
+}
+
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  name String?
+  image String?
+  role Role @default(MEMBER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  workLogs WorkLog[]
+  apiKeys ApiKey[]
+  audits AuditEvent[]
+}
+
+model WorkLog {
+  id String @id @default(cuid())
+  authorId String
+  workDate DateTime
+  title String
+  completed String
+  inProgress String
+  blockers String
+  tomorrow String
+  source LogSource @default(WEB)
+  archived Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  author User @relation(fields: [authorId], references: [id])
+  attachments Attachment[]
+  links ExternalLink[]
+}
+
+model Attachment {
+  id String @id @default(cuid())
+  workLogId String
+  filename String
+  url String
+  mimeType String
+  size Int
+  workLog WorkLog @relation(fields: [workLogId], references: [id], onDelete: Cascade)
+}
+
+model ExternalLink {
+  id String @id @default(cuid())
+  workLogId String
+  label String
+  url String
+  workLog WorkLog @relation(fields: [workLogId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id String @id @default(cuid())
+  userId String
+  name String
+  prefix String
+  encryptedSecret String
+  secretHash String
+  status KeyStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime?
+  revokedAt DateTime?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditEvent {
+  id String @id @default(cuid())
+  actorId String
+  action String
+  targetType String
+  targetId String?
+  metadata String?
+  createdAt DateTime @default(now())
+  actor User @relation(fields: [actorId], references: [id])
+}

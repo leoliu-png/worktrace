@@ -1,0 +1,196 @@
+<!DOCTYPE html><html class="light" lang="zh-CN" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>WorkTrace - 工作轨迹</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ba1a1a",
+                        "outline": "#6e7881",
+                        "tertiary-fixed": "#e0e3e5",
+                        "inverse-surface": "#283044",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed": "#191c1e",
+                        "background": "#faf8ff",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#131b2e",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "on-secondary-fixed": "#0b1c30",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "outline-variant": "#bec8d2",
+                        "on-primary-container": "#003751",
+                        "tertiary-container": "#999c9e",
+                        "on-surface-variant": "#3e4850",
+                        "surface-bright": "#faf8ff",
+                        "surface": "#faf8ff",
+                        "secondary": "#505f76",
+                        "inverse-on-surface": "#eef0ff",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "surface-dim": "#d2d9f4",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#dae2fd",
+                        "surface-container": "#eaedff",
+                        "primary": "#006591",
+                        "on-tertiary-container": "#303436",
+                        "on-error": "#ffffff",
+                        "surface-container-highest": "#dae2fd",
+                        "primary-container": "#0ea5e9",
+                        "surface-container-low": "#f2f3ff",
+                        "on-surface": "#131b2e",
+                        "tertiary": "#5c5f61",
+                        "on-secondary-container": "#54647a",
+                        "primary-fixed": "#c9e6ff",
+                        "secondary-fixed": "#d3e4fe",
+                        "on-primary-fixed": "#001e2f",
+                        "surface-container-high": "#e2e7ff",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "secondary-container": "#d0e1fb",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#006591",
+                        "on-primary": "#ffffff",
+                        "primary-fixed-dim": "#89ceff",
+                        "inverse-primary": "#89ceff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "sm": "8px",
+                        "base": "4px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "xl": "40px",
+                        "container-max": "1440px",
+                        "md": "16px",
+                        "sidebar-width": "260px"
+                    },
+                    "fontFamily": {
+                        "body-base": ["Inter", "sans-serif"],
+                        "label-caps": ["Inter", "sans-serif"],
+                        "body-sm": ["Inter", "sans-serif"],
+                        "headline-md": ["Inter", "sans-serif"],
+                        "display-lg-mobile": ["Inter", "sans-serif"],
+                        "display-lg": ["Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "body-base": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "display-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface-container-low min-h-screen flex flex-col text-on-surface">
+<!-- TopNavBar (Shared Component) -->
+<header class="bg-surface border-b border-outline-variant flex justify-between items-center h-16 px-lg w-full sticky top-0 z-50 transition-all duration-200 ease-in-out">
+<div class="flex items-center gap-xl">
+<!-- Brand Logo -->
+<div class="font-headline-md text-headline-md text-primary">
+                WorkTrace
+            </div>
+<!-- Navigation Links -->
+<nav class="hidden md:flex gap-lg">
+<a class="font-body-base text-body-base text-on-surface-variant hover:bg-secondary-container/50 px-sm py-xs rounded transition-all duration-200 ease-in-out" href="#">文档</a>
+<a class="font-body-base text-body-base text-on-surface-variant hover:bg-secondary-container/50 px-sm py-xs rounded transition-all duration-200 ease-in-out" href="#">更新日志</a>
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<span class="font-body-sm text-body-sm text-on-surface-variant hidden md:block cursor-pointer hover:text-primary transition-colors">语言切换</span>
+<!-- Trailing Icon Actions -->
+<button class="text-on-surface-variant hover:bg-secondary-container/50 p-xs rounded-full transition-all duration-200 ease-in-out flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="dark_mode">dark_mode</span>
+</button>
+<button class="text-on-surface-variant hover:bg-secondary-container/50 p-xs rounded-full transition-all duration-200 ease-in-out flex items-center justify-center md:hidden">
+<span class="material-symbols-outlined" data-icon="translate">translate</span>
+</button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow flex flex-col items-center justify-center px-md py-xl md:py-24 relative overflow-hidden">
+<!-- Decorative subtle background element -->
+<div class="absolute inset-0 z-0 pointer-events-none flex justify-center items-center opacity-30">
+<div class="w-[800px] h-[800px] bg-gradient-to-br from-primary-fixed to-surface-container rounded-full blur-3xl mix-blend-multiply"></div>
+</div>
+<div class="max-w-container-max w-full flex flex-col items-center z-10">
+<!-- Hero Section -->
+<div class="text-center mb-16 md:mb-24 flex flex-col items-center">
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-surface-container-high rounded-full mb-6 border border-outline-variant">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">企业级智能追踪</span>
+</div>
+<h1 class="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-on-surface mb-4 tracking-tight">
+                    WorkTrace / 工作轨迹
+                </h1>
+<p class="font-headline-md text-headline-md text-on-surface-variant max-w-2xl mx-auto mb-10">
+                    记录工作，追踪进展。<br class="md:hidden"> Capture work. Trace progress.
+                </p>
+<!-- Action / Login -->
+<div class="flex flex-col items-center gap-3">
+<button class="bg-primary-container text-on-primary-container hover:bg-primary-container/90 active:scale-95 transition-all duration-200 ease-in-out px-lg py-3 rounded-lg shadow-sm flex items-center gap-3 group">
+<span class="material-symbols-outlined font-light group-hover:rotate-12 transition-transform" data-icon="domain">domain</span>
+<span class="font-body-base text-body-base font-semibold">Google Workspace 登录</span>
+</button>
+<span class="font-label-caps text-label-caps text-outline uppercase tracking-wider">
+                        (仅限 @feedmob.com)
+                    </span>
+</div>
+</div>
+<!-- Value Proposition - Glassmorphism Bento Grid -->
+<div class="grid grid-cols-1 gap-lg w-full max-w-4xl">
+<!-- Agent-first Card -->
+
+<!-- API / MCP Card -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-lg w-full">
+    <!-- MCP Card -->
+    <div class="bg-surface-container-lowest/80 backdrop-blur-md border border-outline-variant rounded-xl p-lg md:p-xl shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] hover:shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1)] transition-shadow duration-300 flex flex-col items-start gap-4">
+        <div class="w-12 h-12 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container mb-2">
+            <span class="material-symbols-outlined text-2xl" data-icon="hub">hub</span>
+        </div>
+        <h2 class="font-headline-md text-headline-md text-on-surface">通过 MCP 接入</h2>
+        <p class="font-body-base text-body-base text-on-surface-variant">
+            利用先进的 Model Context Protocol (MCP) 接口，实现与 AI 模型的深度上下文集成，让工作轨迹数据成为智能决策的核心依据。
+        </p>
+    </div>
+    <!-- Skill Card -->
+    <div class="bg-surface-container-lowest/80 backdrop-blur-md border border-outline-variant rounded-xl p-lg md:p-xl shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] hover:shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1)] transition-shadow duration-300 flex flex-col items-start gap-4">
+        <div class="w-12 h-12 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container mb-2">
+            <span class="material-symbols-outlined text-2xl" data-icon="extension">extension</span>
+        </div>
+        <h2 class="font-headline-md text-headline-md text-on-surface">通过 Skill 接入</h2>
+        <p class="font-body-base text-body-base text-on-surface-variant">
+            通过 Skill 系统快速扩展功能边界。零摩擦接入现有研发工作流，支持自定义技能开发，保障系统的高扩展性与灵活性。
+        </p>
+    </div>
+</div>
+</div>
+</div>
+</main>
+<!-- Minimal Footer -->
+<footer class="py-lg border-t border-outline-variant bg-surface mt-auto text-center">
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+            © 2024 WorkTrace System. All rights reserved.
+        </p>
+</footer>
+
+
+</body></html>

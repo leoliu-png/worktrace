@@ -1,0 +1,433 @@
+<!DOCTYPE html><html lang="zh-CN" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>总工作日志 - WorkTrace</title>
+<!-- Google Fonts & Material Symbols -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ba1a1a",
+                        "outline": "#6e7881",
+                        "tertiary-fixed": "#e0e3e5",
+                        "inverse-surface": "#283044",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed": "#191c1e",
+                        "background": "#faf8ff",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#131b2e",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "on-secondary-fixed": "#0b1c30",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "outline-variant": "#bec8d2",
+                        "on-primary-container": "#003751",
+                        "tertiary-container": "#999c9e",
+                        "on-surface-variant": "#3e4850",
+                        "surface-bright": "#faf8ff",
+                        "surface": "#faf8ff",
+                        "secondary": "#505f76",
+                        "inverse-on-surface": "#eef0ff",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "surface-dim": "#d2d9f4",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#dae2fd",
+                        "surface-container": "#eaedff",
+                        "primary": "#006591",
+                        "on-tertiary-container": "#303436",
+                        "on-error": "#ffffff",
+                        "surface-container-highest": "#dae2fd",
+                        "primary-container": "#0ea5e9",
+                        "surface-container-low": "#f2f3ff",
+                        "on-surface": "#131b2e",
+                        "tertiary": "#5c5f61",
+                        "on-secondary-container": "#54647a",
+                        "primary-fixed": "#c9e6ff",
+                        "secondary-fixed": "#d3e4fe",
+                        "on-primary-fixed": "#001e2f",
+                        "surface-container-high": "#e2e7ff",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "secondary-container": "#d0e1fb",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#006591",
+                        "on-primary": "#ffffff",
+                        "primary-fixed-dim": "#89ceff",
+                        "inverse-primary": "#89ceff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "sm": "8px",
+                        "base": "4px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "xl": "40px",
+                        "container-max": "1440px",
+                        "md": "16px",
+                        "sidebar-width": "260px"
+                    },
+                    "fontFamily": {
+                        "body-base": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "display-lg-mobile": ["Inter"],
+                        "display-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-base": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "display-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                        "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Custom scrollbar for inner panes */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #bec8d2; /* outline-variant */
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-base overflow-hidden selection:bg-primary-container/30">
+<div class="flex h-screen w-full">
+<!-- SideNavBar (Shared Component) -->
+<aside class="flex flex-col w-[260px] h-screen p-md fixed left-0 top-0 bg-surface border-r border-outline-variant flat no shadows z-40 hidden md:flex">
+<!-- Header -->
+<div class="flex items-center gap-sm mb-xl px-sm">
+<div class="w-10 h-10 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-primary">work</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary">工作台</h1>
+<p class="font-label-caps text-label-caps text-on-surface-variant opacity-70">企业级轨迹追踪</p>
+</div>
+</div>
+<!-- CTA -->
+
+<!-- Navigation Tabs -->
+<button class="w-full bg-primary-container text-on-primary-container rounded-lg py-sm px-md mb-lg font-label-caps text-label-caps flex items-center justify-center gap-sm hover:bg-primary-container/90 transition-colors">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                新建日志
+            </button><nav class="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-[2px]">
+<!-- Tab 0: 概览 -->
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high active:scale-95 transition-transform font-body-sm text-body-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">dashboard</span>
+                    概览
+                </a>
+<!-- Tab 1: 所有日志 (ACTIVE) -->
+<a class="flex items-center gap-md px-md py-sm rounded-lg bg-secondary-container text-on-secondary-container border-l-4 border-primary font-body-sm text-body-sm" href="#">
+<span class="material-symbols-outlined">list_alt</span>
+                    所有日志
+                </a>
+<!-- Tab 2: 我的日志 -->
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high active:scale-95 transition-transform font-body-sm text-body-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">person_search</span>
+                    我的日志
+                </a>
+<!-- Tab 3: API 密钥 -->
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high active:scale-95 transition-transform font-body-sm text-body-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">vpn_key</span>
+                    API 密钥
+                </a>
+<!-- Tab 4: 成员管理 -->
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high active:scale-95 transition-transform font-body-sm text-body-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">group</span>
+                    成员管理
+                </a>
+<!-- Tab 5: 权限控制 -->
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high active:scale-95 transition-transform font-body-sm text-body-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">admin_panel_settings</span>
+                    权限控制
+                </a>
+<!-- Tab 6: 日志管理 -->
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high active:scale-95 transition-transform font-body-sm text-body-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">settings_suggest</span>
+                    日志管理
+                </a>
+<!-- Tab 7: 安全审计 -->
+<a class="flex items-center gap-md px-md py-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high active:scale-95 transition-transform font-body-sm text-body-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">security</span>
+                    安全审计
+                </a>
+</nav>
+<!-- Footer Tabs -->
+
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col md:ml-[260px] h-screen overflow-hidden bg-background">
+<!-- TopNavBar (Shared Component) -->
+<header class="flex justify-between items-center h-16 px-lg w-full sticky top-0 z-50 bg-surface border-b border-outline-variant flat no shadows">
+<!-- Mobile Menu & Search/Brand -->
+<div class="flex items-center gap-md">
+<button class="md:hidden text-on-surface-variant p-xs rounded-lg hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<!-- Brand (Hidden on desktop as sidebar has it, but JSON mandates it here too, keeping minimalist) -->
+<span class="text-headline-md font-headline-md text-primary md:hidden">WorkTrace</span>
+<!-- Search Bar (on_left) -->
+<div class="relative hidden sm:flex items-center w-64">
+<span class="material-symbols-outlined absolute left-sm text-outline-variant text-[20px]">search</span>
+<input class="w-full pl-xl pr-sm py-[6px] bg-surface-container-lowest border border-outline-variant rounded text-body-sm font-body-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-on-surface placeholder:text-outline-variant" placeholder="搜索日志..." type="text">
+</div>
+</div>
+<!-- Navigation Links & Actions -->
+<div class="flex items-center gap-lg">
+<!-- Nav Links -->
+<nav class="hidden lg:flex items-center gap-md h-full">
+<a class="text-on-surface-variant hover:bg-secondary-container/50 px-sm py-[18px] transition-all duration-200 ease-in-out font-body-base text-body-base" href="#">文档</a>
+<a class="text-on-surface-variant hover:bg-secondary-container/50 px-sm py-[18px] transition-all duration-200 ease-in-out font-body-base text-body-base" href="#">更新日志</a>
+</nav>
+<div class="h-6 w-px bg-outline-variant hidden sm:block"></div>
+<!-- Actions -->
+<div class="flex items-center gap-sm">
+<button class="p-xs text-on-surface-variant hover:bg-secondary-container/50 rounded-lg transition-all duration-200 ease-in-out group" title="语言切换">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors text-[20px]">translate</span>
+</button>
+<button class="p-xs text-on-surface-variant hover:bg-secondary-container/50 rounded-lg transition-all duration-200 ease-in-out group" title="切换深色模式">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors text-[20px]">dark_mode</span>
+</button>
+<div class="ml-sm relative">
+<img alt="User Avatar" class="w-8 h-8 rounded-full object-cover border border-outline-variant cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all" data-alt="A professional headshot of a corporate employee in a brightly lit modern office setting, soft lighting, minimalist background, crisp resolution." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAe-9a64TEoSdJbQVMCYGBbe5VGOjJHyGFFOROiEPekLR5jdL9QaOFrBA7kQz61EJeMvyHYBvKVxsfjXYVcQ8WphuM-tj6PBC3MyrBGzZIB2vJA9-CtNXnxaF6ujnNfxyelr-doR3NbV4Os64yb8YF9hBq9dfYRqHWaadjOwnXuI0JyFCl6bqTjTEoS9s1mnefWOjd1cdm1NFPWPbZRqQ-VnYAd1Zdbj0wKF0qbqYVpDuzz6EhrbsAsHg">
+</div>
+</div>
+</div>
+</header>
+<!-- Two-Column View -->
+<div class="flex-1 flex overflow-hidden w-full max-w-container-max mx-auto">
+<!-- Left Column: List View -->
+<div class="w-full md:w-[380px] lg:w-[420px] flex flex-col border-r border-outline-variant bg-surface-container-lowest shrink-0">
+<!-- Filters & Header -->
+<div class="p-md border-b border-outline-variant bg-surface flex flex-col gap-sm shrink-0">
+<div class="flex justify-between items-center">
+<h2 class="font-headline-md text-headline-md text-on-surface">日志列表</h2>
+<span class="font-label-caps text-label-caps text-outline bg-surface-container-high px-sm py-[2px] rounded">124 条记录</span>
+</div>
+<div class="flex gap-sm mt-sm">
+<button class="flex-1 flex items-center justify-between px-sm py-[6px] border border-outline-variant rounded bg-surface-container-lowest hover:bg-surface-container-low transition-colors text-body-sm font-body-sm text-on-surface-variant group">
+<span class="flex items-center gap-xs"><span class="material-symbols-outlined text-[16px] text-outline">person</span> 全部人员</span>
+<span class="material-symbols-outlined text-[16px] text-outline group-hover:text-on-surface">arrow_drop_down</span>
+</button>
+<button class="flex-1 flex items-center justify-between px-sm py-[6px] border border-outline-variant rounded bg-surface-container-lowest hover:bg-surface-container-low transition-colors text-body-sm font-body-sm text-on-surface-variant group">
+<span class="flex items-center gap-xs"><span class="material-symbols-outlined text-[16px] text-outline">calendar_today</span> 本周</span>
+<span class="material-symbols-outlined text-[16px] text-outline group-hover:text-on-surface">arrow_drop_down</span>
+</button>
+<button class="w-10 flex items-center justify-center border border-outline-variant rounded bg-surface-container-lowest hover:bg-surface-container-low transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+</button>
+</div>
+</div>
+<!-- List Content -->
+<div class="flex-1 overflow-y-auto custom-scrollbar p-sm flex flex-col gap-sm">
+<!-- List Item (Active/Selected) -->
+<div class="p-md rounded-lg border border-primary bg-secondary-container/20 cursor-pointer relative overflow-hidden group">
+<div class="absolute left-0 top-0 bottom-0 w-[3px] bg-primary"></div>
+<div class="flex justify-between items-start mb-xs">
+<h3 class="font-body-sm text-body-sm font-semibold text-on-surface truncate pr-md">Q3 核心引擎重构架构评审与优化实施方案</h3>
+<span class="font-label-caps text-label-caps text-outline shrink-0">10:45 AM</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mb-sm">完成了核心数据解析模块的重构，内存占用降低40%。目前正在处理高并发场景下的死锁风险，预计明日完成全部压力测试。</p>
+<div class="flex items-center justify-between mt-auto">
+<div class="flex items-center gap-xs">
+<img alt="User" class="w-5 h-5 rounded-full object-cover" data-alt="Small thumbnail portrait of an Asian male software engineer with glasses, clean and professional corporate style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3XEAByH_E482YAXomgYM22D7OuHLi0iVJRMa5p9o4EdW9dEDHm9BuE70jCyNzpflWJxccv2tNg-W0sYNCrzdFuXJsGXBdXpCdXL7MzSF6z7l_JwJQvXt0CUHZkCS78rpRINXOLJ2qRFiezpGkGdSFUZMbKxF979DPOcPjR5dTIzameaYgAZxVc3rAhBTSzQrVLOyq-vMNAZfZbFqHSJvIVnUpQhKMDyPOE26FotIIDZPsfR1kw5c5ZQ">
+<span class="font-label-caps text-label-caps text-on-surface-variant">李博文</span>
+</div>
+<span class="font-label-caps text-label-caps px-xs py-[2px] rounded bg-primary/10 text-primary">Web 端</span>
+</div>
+</div>
+<!-- List Item 2 -->
+<div class="p-md rounded-lg border border-outline-variant bg-surface-container-lowest hover:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] hover:border-outline cursor-pointer transition-all">
+<div class="flex justify-between items-start mb-xs">
+<h3 class="font-body-sm text-body-sm font-semibold text-on-surface truncate pr-md">设计系统 Token 定义与同步机制</h3>
+<span class="font-label-caps text-label-caps text-outline shrink-0">昨日</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mb-sm">与前端团队对齐了颜色和排版的基础 Token，确认了通过 Figma API 自动同步至代码库的初步方案。</p>
+<div class="flex items-center justify-between mt-auto">
+<div class="flex items-center gap-xs">
+<img alt="User" class="w-5 h-5 rounded-full object-cover" data-alt="Small thumbnail portrait of a female UI designer in a modern studio environment, bright corporate aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCAwTZBBrY8WR5wFXa747ik0k9tDNm1itFczbv0n1Sas6ZVTd3JcGr6dziHMZZm5U0AxhirOCZssP07tzLsF8jyJCjLsyFMrGF6vr_GwUckFrp46ClHthCMLgKOXWfNxsW2Iiy42F-yl-gQxiaxZruqYnG0iltEk-HeUqbVhbZvFxyiSDEvrL48BC_2_3W1KMvAjahcw2dzYRhrINbzF4DNtpZzXhk_FhRNywse1ZdW16pTIj8y3Pb8Kg">
+<span class="font-label-caps text-label-caps text-on-surface-variant">陈安妮</span>
+</div>
+<span class="font-label-caps text-label-caps px-xs py-[2px] rounded bg-[#10B981]/10 text-[#10B981]">API 推送</span>
+</div>
+</div>
+<!-- List Item 3 -->
+<div class="p-md rounded-lg border border-outline-variant bg-surface-container-lowest hover:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] hover:border-outline cursor-pointer transition-all">
+<div class="flex justify-between items-start mb-xs">
+<h3 class="font-body-sm text-body-sm font-semibold text-on-surface truncate pr-md">客户 A 系统集成联调会议纪要</h3>
+<span class="font-label-caps text-label-caps text-outline shrink-0">周二</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mb-sm">确认了 SSO 单点登录的对接参数，对方环境存在跨域限制，需我们提供代理方案。风险可控。</p>
+<div class="flex items-center justify-between mt-auto">
+<div class="flex items-center gap-xs">
+<div class="w-5 h-5 rounded-full bg-surface-variant flex items-center justify-center text-on-surface-variant font-label-caps text-[10px]">ZH</div>
+<span class="font-label-caps text-label-caps text-on-surface-variant">张海</span>
+</div>
+<span class="font-label-caps text-label-caps px-xs py-[2px] rounded bg-secondary/10 text-secondary">MCP 生成</span>
+</div>
+</div>
+</div>
+<!-- Pagination (Simplified) -->
+<div class="p-sm border-t border-outline-variant bg-surface flex justify-between items-center shrink-0">
+<button class="p-xs text-outline hover:text-on-surface disabled:opacity-50 transition-colors" disabled="">
+<span class="material-symbols-outlined text-[20px]">chevron_left</span>
+</button>
+<span class="font-label-caps text-label-caps text-on-surface-variant">1 / 12 页</span>
+<button class="p-xs text-outline hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-[20px]">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Right Column: Detail View -->
+<div class="flex-1 flex flex-col bg-surface-bright overflow-hidden">
+<!-- Detail Header Actions -->
+<div class="px-xl py-md border-b border-outline-variant flex justify-between items-center bg-surface shrink-0">
+<div class="flex gap-sm">
+<button class="p-xs text-outline hover:text-on-surface bg-surface-container-lowest border border-outline-variant rounded transition-colors tooltip-trigger" title="返回列表">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+</button>
+</div>
+<div class="flex gap-sm">
+<button class="flex items-center gap-xs px-sm py-[6px] border border-outline-variant rounded bg-surface-container-lowest hover:bg-surface-container-low transition-colors text-body-sm font-body-sm text-on-surface">
+<span class="material-symbols-outlined text-[16px]">edit</span>
+                                编辑
+                            </button>
+<button class="flex items-center gap-xs px-sm py-[6px] border border-outline-variant rounded bg-surface-container-lowest hover:bg-error-container hover:text-on-error-container hover:border-error-container transition-colors text-body-sm font-body-sm text-outline">
+<span class="material-symbols-outlined text-[16px]">archive</span>
+                                归档
+                            </button>
+</div>
+</div>
+<!-- Detail Content -->
+<div class="flex-1 overflow-y-auto custom-scrollbar p-xl">
+<div class="max-w-[800px] mx-auto">
+<!-- Meta Header -->
+<div class="mb-xl">
+<div class="flex items-center gap-sm mb-md">
+<span class="font-label-caps text-label-caps px-sm py-[2px] rounded-full bg-primary/10 text-primary border border-primary/20">Web 端提交</span>
+<span class="font-label-caps text-label-caps text-outline flex items-center gap-xs"><span class="material-symbols-outlined text-[14px]">schedule</span> 2023-10-25 10:45 AM</span>
+</div>
+<h1 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-on-background mb-lg">Q3 核心引擎重构架构评审与优化实施方案</h1>
+<div class="flex items-center gap-md p-md bg-surface-container-lowest border border-outline-variant rounded-lg">
+<img alt="User" class="w-10 h-10 rounded-full object-cover" data-alt="Professional portrait of a male tech lead in a clean modern office, looking confident, high key lighting, crisp corporate style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBIB5P9Z0egpLa0_LH_7klbWJrM9NwNFEVVatOkBYPS0uJtMr7P5ZUcX2xQ2aFrZkmoOljfR34TqsSyfhrvI89L_nCnNRSX0D3Bga2lUCt3B0BNbVDJIjWnzgyoPSkk_0JnpJl_oKHTkpy7lAShETD_CW5cSYmohrQGt42EGf0yw9gYmB6vcEaZDA_l7GbtiViLeL_yfXUFSYoIy_dbvDeanFaHd_v2AxCAeOdb1lDi1YEMuFnI1dP8XQ">
+<div>
+<div class="font-body-sm text-body-sm font-semibold text-on-surface">李博文</div>
+<div class="font-label-caps text-label-caps text-outline">后端架构组 · 资深研发工程师</div>
+</div>
+</div>
+</div>
+<!-- Content Sections (Bento-ish structured grid) -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-lg mb-xl">
+<!-- Done -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg flex flex-col h-full">
+<div class="flex items-center gap-sm mb-md text-[#10B981]">
+<span class="material-symbols-outlined text-[20px]">check_circle</span>
+<h3 class="font-headline-md text-headline-md text-on-surface">今日完成 (Done)</h3>
+</div>
+<ul class="list-disc list-inside font-body-base text-body-base text-on-surface-variant space-y-sm flex-1">
+<li class="">完成核心数据解析模块的解耦重构。</li>
+<li class="">优化缓存策略，实测内存占用平均降低 40%。</li>
+<li class="">提交 PR #2041，并完成团队内部 Code Review。</li>
+</ul>
+</section>
+<!-- In Progress -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg flex flex-col h-full">
+<div class="flex items-center gap-sm mb-md text-[#F59E0B]">
+<span class="material-symbols-outlined text-[20px]">pending</span>
+<h3 class="font-headline-md text-headline-md text-on-surface">进行中 (In Progress)</h3>
+</div>
+<ul class="list-disc list-inside font-body-base text-body-base text-on-surface-variant space-y-sm flex-1">
+<li class="">高并发场景下的压力测试 (目前进度 60%)。</li>
+<li class="">补充新版架构的 API 接口文档，特别是鉴权部分。</li>
+</ul>
+</section>
+</div>
+<div class="grid grid-cols-1 gap-lg mb-xl">
+<!-- Blocked/Risk -->
+<section class="bg-error-container/20 border border-error-container rounded-xl p-lg">
+<div class="flex items-center gap-sm mb-md text-error">
+<span class="material-symbols-outlined text-[20px]">warning</span>
+<h3 class="font-headline-md text-headline-md text-on-surface">风险与阻塞 (Blocked / Risk)</h3>
+</div>
+<p class="font-body-base text-body-base text-on-surface-variant leading-relaxed">
+                                        在进行 10w+ 并发压测时，发现日志持久化层存在偶发性的死锁现象。初步排查是由于异步队列写入和批量刷盘操作之间的事务隔离级别设置不当导致。需要数据库 DBA 协助验证配置项。
+                                    </p>
+</section>
+<!-- Next Plan -->
+<section class="bg-surface-container-low border border-outline-variant rounded-xl p-lg">
+<div class="flex items-center gap-sm mb-md text-primary">
+<span class="material-symbols-outlined text-[20px]">next_plan</span>
+<h3 class="font-headline-md text-headline-md text-on-surface">明日计划 (Next Plan)</h3>
+</div>
+<ul class="list-disc list-inside font-body-base text-body-base text-on-surface-variant space-y-sm">
+<li class="">与 DBA 团队开会解决死锁问题。</li>
+<li class="">完成剩余 40% 的压力测试报告。</li>
+<li class="">将优化分支合并入预发环境主干，准备灰度发布。</li>
+</ul>
+</section>
+</div>
+<!-- Links & Attachments -->
+<section class="mt-xl pt-lg border-t border-outline-variant">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-md">相关链接与附件</h3>
+<div class="flex flex-wrap gap-md mb-lg">
+<!-- Link Chip -->
+<a class="flex items-center gap-xs px-sm py-[6px] border border-outline-variant rounded-full bg-surface-container-lowest hover:bg-surface-container-high transition-colors text-body-sm font-body-sm text-on-surface group" href="#">
+<span class="material-symbols-outlined text-[16px] text-outline group-hover:text-primary">link</span>
+                                        PR #2041 (GitHub)
+                                    </a>
+<a class="flex items-center gap-xs px-sm py-[6px] border border-outline-variant rounded-full bg-surface-container-lowest hover:bg-surface-container-high transition-colors text-body-sm font-body-sm text-on-surface group" href="#">
+<span class="material-symbols-outlined text-[16px] text-outline group-hover:text-primary">description</span>
+                                        架构重构技术方案文档
+                                    </a>
+</div>
+<!-- Image Attachments -->
+<div class="grid grid-cols-2 md:grid-cols-3 gap-md">
+<div class="group relative rounded-lg border border-outline-variant overflow-hidden bg-surface-container-lowest aspect-video cursor-zoom-in">
+<img alt="Architecture Diagram" class="w-full h-full object-cover" data-alt="A technical architecture diagram showing cloud components, databases, and message queues in a clean blueprint style, light mode theme." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC-U0BnbWoI33jXYgdylhNJ9wvrDO6dGkD7xft3M-J4GfdFUEjUhEq9YAY0a48dUp7ADyXG05oQF-t7eo1Hh9CjKRJiVCIZlN9vBWcr8uqBtzmTg2k9hHsJGJE_AceljNsUMtij_YrvaBgPg7TDdI6QenoOP2OWm6_rW0gVgdwAzEodn3jMuB_xUni9b7W_XzINcLWNDrP7tw-TvSUSdbiNcMh0uDB4pcef9HbZsS1F6ZlJmFma-ojQ2g">
+<div class="absolute inset-0 bg-on-background/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+<span class="material-symbols-outlined text-white">open_in_full</span>
+</div>
+</div>
+<div class="group relative rounded-lg border border-outline-variant overflow-hidden bg-surface-container-lowest aspect-video cursor-zoom-in">
+<img alt="Terminal Output" class="w-full h-full object-cover" data-alt="A screenshot of a terminal window showing successful build logs and performance metrics, clear typography, light mode syntax highlighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAow6T3asujVr2COhm0A1eTzk3Z9CWtGDKmTcweFPApm6VJL9GcIz7fmeOIEAT97RVNhUuMAxHjhJP7lkjJQd8_XLpjW8dFm6MscLXgFdN3Fp4y-0C-4bt6XK6zZXBFOP0LLTaeGhB4e5gyVUMdocPO3pwxMLVEqg0oDGcuR94GusUQGtkbhas2stHy9y6nHWxqFpBnmziexn5H_7OLsYpe6u1_u4OTarZwamGMkMn4J3pHHCKiStUH8A">
+<div class="absolute inset-0 bg-on-background/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+<span class="material-symbols-outlined text-white">open_in_full</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Spacer for bottom scrolling -->
+<div class="h-xl"></div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+
+</body></html>

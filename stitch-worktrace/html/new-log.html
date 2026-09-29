@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>新建日志 - WorkTrace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ba1a1a",
+                        "outline": "#6e7881",
+                        "tertiary-fixed": "#e0e3e5",
+                        "inverse-surface": "#283044",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed": "#191c1e",
+                        "background": "#faf8ff",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#131b2e",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "on-secondary-fixed": "#0b1c30",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "outline-variant": "#bec8d2",
+                        "on-primary-container": "#003751",
+                        "tertiary-container": "#999c9e",
+                        "on-surface-variant": "#3e4850",
+                        "surface-bright": "#faf8ff",
+                        "surface": "#faf8ff",
+                        "secondary": "#505f76",
+                        "inverse-on-surface": "#eef0ff",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "surface-dim": "#d2d9f4",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#dae2fd",
+                        "surface-container": "#eaedff",
+                        "primary": "#006591",
+                        "on-tertiary-container": "#303436",
+                        "on-error": "#ffffff",
+                        "surface-container-highest": "#dae2fd",
+                        "primary-container": "#0ea5e9",
+                        "surface-container-low": "#f2f3ff",
+                        "on-surface": "#131b2e",
+                        "tertiary": "#5c5f61",
+                        "on-secondary-container": "#54647a",
+                        "primary-fixed": "#c9e6ff",
+                        "secondary-fixed": "#d3e4fe",
+                        "on-primary-fixed": "#001e2f",
+                        "surface-container-high": "#e2e7ff",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "secondary-container": "#d0e1fb",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#006591",
+                        "on-primary": "#ffffff",
+                        "primary-fixed-dim": "#89ceff",
+                        "inverse-primary": "#89ceff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "sm": "8px",
+                        "base": "4px",
+                        "xs": "4px",
+                        "lg": "24px",
+                        "xl": "40px",
+                        "container-max": "1440px",
+                        "md": "16px",
+                        "sidebar-width": "260px"
+                    },
+                    "fontFamily": {
+                        "body-base": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "display-lg-mobile": ["Inter"],
+                        "display-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-base": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "display-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-base min-h-screen flex flex-col antialiased">
+<!-- Simplified Top Bar for Focused Task -->
+<header class="h-16 flex items-center px-lg border-b border-outline-variant sticky top-0 bg-surface/80 backdrop-blur-md z-40">
+<div class="flex-1">
+<button class="flex items-center gap-xs text-on-surface-variant hover:text-on-surface transition-colors focus:outline-none">
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+<span class="font-body-sm text-body-sm">返回列表</span>
+</button>
+</div>
+<h1 class="font-headline-md text-headline-md font-semibold absolute left-1/2 -translate-x-1/2">新建日志</h1>
+<div class="flex-1 flex justify-end gap-md">
+<button class="px-md py-sm rounded-lg font-body-sm text-body-sm text-on-surface border border-outline-variant hover:bg-surface-variant transition-colors focus:outline-none" type="button">
+                存草稿
+            </button>
+<button class="px-md py-sm rounded-lg font-body-sm text-body-sm bg-primary-container text-on-primary hover:bg-primary-container/90 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-container/50" type="button">
+                保存日志
+            </button>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-1 w-full max-w-5xl mx-auto py-xl px-md md:px-lg overflow-y-auto">
+<form class="space-y-lg">
+<!-- Metadata Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm hover:shadow-md transition-shadow duration-300">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+<div class="space-y-sm relative">
+<label class="block font-label-caps text-label-caps text-on-surface-variant">日期 <span class="text-error">*</span></label>
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-sm text-outline pointer-events-none">calendar_today</span>
+<input class="w-full pl-xl pr-md py-sm bg-surface-container-lowest border border-outline-variant rounded-lg font-body-base text-body-base text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all outline-none" required="" type="date" value="2023-10-27"/>
+</div>
+</div>
+<div class="space-y-sm">
+<label class="block font-label-caps text-label-caps text-on-surface-variant">标题 <span class="text-error">*</span></label>
+<input class="w-full px-md py-sm bg-surface-container-lowest border border-outline-variant rounded-lg font-body-base text-body-base text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all outline-none" placeholder="一句话总结今日工作重点" required="" type="text"/>
+</div>
+</div>
+</div>
+<!-- Quadrant Grid for Content -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+<!-- Done -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg space-y-md shadow-sm hover:shadow-md transition-shadow duration-300">
+<div class="flex items-center gap-sm text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<h2 class="font-headline-md text-headline-md">完成事项</h2>
+</div>
+<textarea class="w-full p-md bg-surface border border-outline-variant rounded-lg font-body-base text-body-base text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all outline-none resize-y" placeholder="详细描述已完成的工作，可使用列表格式..." rows="5"></textarea>
+</div>
+<!-- In Progress -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg space-y-md shadow-sm hover:shadow-md transition-shadow duration-300">
+<div class="flex items-center gap-sm text-primary-fixed-dim">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">pending</span>
+<h2 class="font-headline-md text-headline-md">进行中</h2>
+</div>
+<textarea class="w-full p-md bg-surface border border-outline-variant rounded-lg font-body-base text-body-base text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all outline-none resize-y" placeholder="记录当前进度及下一步行动..." rows="5"></textarea>
+</div>
+<!-- Blocked -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg space-y-md shadow-sm hover:shadow-md transition-shadow duration-300">
+<div class="flex items-center gap-sm text-error">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">warning</span>
+<h2 class="font-headline-md text-headline-md">阻塞/风险</h2>
+</div>
+<textarea class="w-full p-md bg-surface border border-error/50 rounded-lg font-body-base text-body-base text-on-surface focus:border-error focus:ring-2 focus:ring-error/20 transition-all outline-none resize-y" placeholder="记录遇到的困难、需要的协助或潜在风险..." rows="5"></textarea>
+</div>
+<!-- Next Plan -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg space-y-md shadow-sm hover:shadow-md transition-shadow duration-300">
+<div class="flex items-center gap-sm text-secondary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">flag</span>
+<h2 class="font-headline-md text-headline-md">明日计划</h2>
+</div>
+<textarea class="w-full p-md bg-surface border border-outline-variant rounded-lg font-body-base text-body-base text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all outline-none resize-y" placeholder="简述明天的主要工作目标..." rows="5"></textarea>
+</div>
+</div>
+<!-- Attachments & Links Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg shadow-sm hover:shadow-md transition-shadow duration-300 space-y-lg">
+<!-- Links -->
+<div class="space-y-sm">
+<label class="block font-label-caps text-label-caps text-on-surface-variant flex items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">link</span> 外部链接
+                    </label>
+<div class="flex flex-col sm:flex-row gap-sm">
+<input class="flex-1 px-md py-sm bg-surface-container-lowest border border-outline-variant rounded-lg font-body-base text-body-base text-on-surface focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all outline-none" placeholder="添加 Jira, PR 或文档链接 (https://...)" type="url"/>
+<button class="px-lg py-sm bg-surface-variant text-on-surface-variant rounded-lg hover:bg-surface-container-high transition-colors font-body-sm text-body-sm whitespace-nowrap" type="button">
+                            添加链接
+                        </button>
+</div>
+</div>
+<!-- File Upload -->
+<div class="space-y-sm">
+<label class="block font-label-caps text-label-caps text-on-surface-variant flex items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">image</span> 截图附件
+                    </label>
+<div class="border-2 border-dashed border-outline-variant rounded-xl p-xl flex flex-col items-center justify-center gap-md hover:bg-surface-container-low hover:border-primary-container/50 transition-all cursor-pointer group bg-surface">
+<div class="w-12 h-12 rounded-full bg-surface-variant flex items-center justify-center group-hover:bg-primary-fixed group-hover:text-on-primary-fixed transition-colors">
+<span class="material-symbols-outlined text-[24px]">cloud_upload</span>
+</div>
+<div class="text-center space-y-xs">
+<p class="font-body-base text-body-base text-on-surface font-medium">点击上传或将文件拖拽到此处</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">支持 PNG, JPG, GIF，单文件最大 10MB</p>
+</div>
+</div>
+</div>
+</div>
+</form>
+</main>
+<script>
+        // Placeholder for simple interaction feedback
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                if(e.target.textContent.trim() === '保存日志') {
+                    e.preventDefault();
+                    // Provide minimal feedback
+                    const originalText = e.target.textContent;
+                    e.target.textContent = '保存中...';
+                    e.target.classList.add('opacity-70');
+                    setTimeout(() => {
+                        e.target.textContent = '保存成功';
+                        e.target.classList.remove('bg-primary-container');
+                        e.target.classList.add('bg-[#10B981]', 'text-white'); // Fallback semantic success color
+                        setTimeout(() => {
+                            e.target.textContent = originalText;
+                            e.target.classList.add('bg-primary-container');
+                            e.target.classList.remove('bg-[#10B981]', 'text-white', 'opacity-70');
+                        }, 2000);
+                    }, 800);
+                }
+            });
+        });
+    </script>
+</body></html>

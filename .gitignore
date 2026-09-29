@@ -1,0 +1,11 @@
+node_modules
+.next
+.tools
+.vite
+*.tsbuildinfo
+.env
+.private
+dev.db
+worktrace-local.db
+prisma/dev.db
+uploads
