@@ -4,6 +4,7 @@ import { createDatabase } from '@/lib/db';
 import { validateAgentWorkLog } from '@/lib/agent-work-logs';
 import { resolveApiKeyOrSessionUser } from '@/lib/request-auth';
 import { auth } from '@/auth';
+import { syncMobiusForWorkLog } from '@/lib/mobius-sync';
 
 const maxPayloadBytes = 64 * 1024;
 const idempotencyKey = z.string().regex(/^[\x21-\x7e]{1,128}$/);
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
     const suppliedKey = request.headers.get('idempotency-key');
     if (suppliedKey && !idempotencyKey.safeParse(suppliedKey).success) return failure('VALIDATION_ERROR', 'Idempotency-Key is invalid.', 400);
     const result = suppliedKey ? db.upsertDailyWorkLogIdempotent(user.id, parsed.data, suppliedKey) : db.upsertDailyWorkLog(user.id, parsed.data);
-    return NextResponse.json({ data: result.log }, { status: result.created ? 201 : 200 });
+    const mobius = await syncMobiusForWorkLog(result.log, user, undefined, { source: 'api', database: db });
+    return NextResponse.json({ data: result.log, mobius }, { status: result.created ? 201 : 200 });
   } catch { return failure('SERVICE_UNAVAILABLE', 'The service is temporarily unavailable.', 503); } finally { db.close(); }
 }

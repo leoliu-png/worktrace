@@ -6,6 +6,7 @@ const memberNavigation = [
   { id: 'new-log', href: '/console/logs/new', label: '新建日志' },
   { id: 'api-keys', href: '/console/api-keys', label: 'API Keys' },
   { id: 'my-logs', href: '/console/my-logs', label: '我的日志' },
+  { id: 'issue-matches', href: '/console/issue-matches', label: 'Issue 匹配结果' },
 ];
 
 const adminNavigation = [

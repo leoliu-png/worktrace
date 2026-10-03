@@ -7,6 +7,8 @@ import { loadConsoleData, type OverviewPeriod } from '@/lib/worktrace-data';
 import { currentLocale } from '@/lib/locale-server';
 import { formatWorkTraceDateTime } from '@/lib/time';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ConsolePage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const user = await currentConsoleUser();
   if (!user) return null;

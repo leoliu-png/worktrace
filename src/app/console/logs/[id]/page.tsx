@@ -2,15 +2,17 @@ import Link from 'next/link';
 import { deleteWorkLog } from '@/app/actions/work-logs';
 import { ConsolePageFrame } from '@/components/console-page-frame';
 import { MarkdownContent } from '@/components/markdown-content';
+import { MobiusSyncNotice } from '@/components/mobius-sync-notice';
 import { createDatabase } from '@/lib/db';
 import { workLogMarkdownContent } from '@/lib/markdown-work-log';
 import { currentConsoleUser } from '@/lib/session';
 import { formatWorkTraceDateTime } from '@/lib/time';
 import { loadConsoleData } from '@/lib/worktrace-data';
 
-export default async function LogDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string }> }) {
+export default async function LogDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string; mobius?: string; posted?: string; unmatched?: string; updated?: string; failed?: string }> }) {
   const { id } = await params;
-  const requestedFrom = (await searchParams).from;
+  const query = await searchParams;
+  const requestedFrom = query.from;
   const from = requestedFrom === 'my' || requestedFrom === 'admin' ? requestedFrom : 'all';
   const user = await currentConsoleUser();
   if (!user) return null;
@@ -30,6 +32,7 @@ export default async function LogDetailPage({ params, searchParams }: { params: 
   const separateAttachments = attachments.filter((attachment) => !markdown.includes(`/api/v1/work-logs/${log.id}/attachments/${attachment.id}`));
   const suffix = from === 'all' ? '' : `?from=${from}`;
   return <ConsolePageFrame title="工作日志详情" activePath={backHref}>
+    <MobiusSyncNotice {...query} status={query.mobius} />
     <div className="wt-detail-actions">
       <Link href={backHref}>← {backLabel}</Link>
       {canModify && <div className="wt-detail-owner-actions">

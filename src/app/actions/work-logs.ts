@@ -1,11 +1,13 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { auth } from '@/auth';
 import { removeImageAttachments, saveImageAttachments } from '@/lib/attachments';
-import { createDatabase } from '@/lib/db';
+import { createDatabase, type LocalWorkLog } from '@/lib/db';
 import { normalizeWorkLogSection } from '@/lib/agent-work-logs';
 import { maxMarkdownCharacters, parseMarkdownWorkLog } from '@/lib/markdown-work-log';
+import { syncMobiusForWorkLog, type MobiusSyncResult } from '@/lib/mobius-sync';
 import { pendingPastedImages, replacePastedImageSources } from '@/lib/pasted-work-log-images';
 import { resolveReportDate } from '@/lib/report-date';
 
@@ -15,6 +17,10 @@ async function preparePastedImages(formData: FormData, markdown: string, errorUr
     const stored = pending.length ? await saveImageAttachments(pending.map((image) => image.file)) : [];
     return { pending, stored };
   } catch { redirect(errorUrl); }
+}
+
+function mobiusQuery(result: MobiusSyncResult) {
+  return `&mobius=${result.status}&posted=${result.posted}&unmatched=${result.unmatched}&updated=${result.alreadyUpdated}&failed=${result.failed}`;
 }
 
 export async function createWorkLog(formData: FormData) {
@@ -33,6 +39,7 @@ export async function createWorkLog(formData: FormData) {
 
   const { pending, stored } = await preparePastedImages(formData, markdown, '/console/logs/new?error=image');
   const database = createDatabase();
+  let savedLog: LocalWorkLog | undefined;
   try {
     database.transaction(() => {
       const { log } = database.upsertDailyWorkLog(user.id, { reportDate, ...input });
@@ -40,12 +47,17 @@ export async function createWorkLog(formData: FormData) {
         const attachments = database.addWorkLogAttachments(log.id, stored);
         database.setWorkLogMarkdown(log.id, replacePastedImageSources(markdown, pending, attachments));
       }
+      savedLog = database.getWorkLog(log.id);
     });
   } catch (error) {
     await removeImageAttachments(stored.map((image) => image.storageKey));
     throw error;
   } finally { database.close(); }
-  redirect('/console/my-logs?created=1');
+  if (!savedLog) throw new Error('Saved work log was not found.');
+  const mobius = await syncMobiusForWorkLog(savedLog, user);
+  revalidatePath('/console');
+  revalidatePath('/console/issue-matches');
+  redirect(`/console/my-logs?created=1${mobiusQuery(mobius)}`);
 }
 
 function logInput(formData: FormData) {
@@ -64,6 +76,7 @@ export async function updateWorkLog(formData: FormData) {
   if (!input || !input.title || (!markdownMode && !input.completed.length)) redirect(markdownMode ? `${editUrl}required` : '/console');
   const { pending, stored } = await preparePastedImages(formData, markdown, `${editUrl}image`);
   const database = createDatabase();
+  let savedLog: LocalWorkLog | undefined;
   try {
     database.transaction(() => {
       database.updateWorkLog(id, user.id, user.role!, input);
@@ -71,12 +84,17 @@ export async function updateWorkLog(formData: FormData) {
         const attachments = database.addWorkLogAttachments(id, stored);
         database.setWorkLogMarkdown(id, replacePastedImageSources(markdown, pending, attachments));
       }
+      savedLog = database.getWorkLog(id);
     });
   } catch (error) {
     await removeImageAttachments(stored.map((image) => image.storageKey));
     throw error;
   } finally { database.close(); }
-  redirect(`/console/logs/${id}${from ? `?from=${from}` : ''}`);
+  if (!savedLog) throw new Error('Saved work log was not found.');
+  const mobius = await syncMobiusForWorkLog(savedLog, savedLog.authorId === user.id ? user : {});
+  revalidatePath('/console');
+  revalidatePath('/console/issue-matches');
+  redirect(`/console/logs/${id}?${from ? `from=${from}&` : ''}saved=1${mobiusQuery(mobius)}`);
 }
 
 export async function deleteWorkLog(formData: FormData) {

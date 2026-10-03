@@ -7,5 +7,7 @@ node_modules
 .private
 dev.db
 worktrace-local.db
+*.db-shm
+*.db-wal
 prisma/dev.db
 uploads

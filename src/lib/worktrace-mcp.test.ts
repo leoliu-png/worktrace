@@ -39,6 +39,7 @@ describe('WorkTrace MCP tools', () => {
     const content = result.content.find((item) => item.type === 'text');
     expect(JSON.parse(content?.text ?? '{}')).toMatchObject({ title: 'Updated title', blockers: '- Waiting for a response\n- Confirm the release window' });
     expect(db.getWorkLog(log.id)).toMatchObject({ title: 'Updated title', completed: ['Updated completion'] });
+    expect(db.listMobiusSyncRuns(owner.id).items).toEqual([expect.objectContaining({ source: 'mcp', workLogId: log.id, result: expect.objectContaining({ posted: 0 }) })]);
     expect(db.listAuditEvents(owner.id)).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: 'WORK_LOG_UPDATED', targetId: log.id }),
     ]));

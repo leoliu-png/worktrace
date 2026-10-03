@@ -118,6 +118,26 @@ Agent Skill 可从以下地址读取：
 https://你的域名/skill/worktrace
 ```
 
+### 将工作日志同步到 Mobius Issue
+
+在运行 WorkTrace 的服务器 `.env` 中配置：
+
+```dotenv
+MOBIUS_MCP_URL=https://mobius.feedmob.com/api/mcp
+MOBIUS_PAT=你的_Mobius_令牌
+MOBIUS_SYNC_AUTHOR_EMAILS=需要启用同步的成员邮箱
+```
+
+提交或修改**当天**的工作日志时，网页、REST API 和 WorkTrace MCP 只在日志作者的 Mobius **My issues → Participating** 列表中匹配 Issue。这个范围由 Mobius 的实际订阅记录决定；只有 Assignee / Collaborator，或者曾创建、评论过 Issue，都不能代替当前订阅关系。Done / Completed 状态不评论，也不会把内容改投次优候选。只有日志条目中明确写出范围内的 Issue 编号，或候选有唯一的高置信匹配，且该 Issue 按上海时间今天尚无更新时，系统才会评论；同一 Issue 当天最多自动评论一次。匹配不明确的条目会跳过，可在日志中写入 `AI-1234` 形式的 Issue 编号。
+
+当前 Mobius MCP 的 `list_issues` 没有订阅筛选，因此候选集合使用同一个 `MOBIUS_PAT` 读取 Mobius 页面的 `/api/issues?subscriberId=当前令牌用户ID` 接口，Issue 详情、状态检查和发表评论继续通过 Mobius MCP。系统会确认订阅筛选有效；无法读取或验证这个范围时停止自动评论，不扩大到其他 Issue。发表评论前重新读取 Participating，退订的 Issue 会被排除。
+
+标题、人工描述和历史人工评论共同提供项目线索，因此评论中的项目名也能对应中文标题；AI 背景补全以及 WorkTrace 自动评论不能单独建立匹配。项目名和核心主题优先于额外的进度描述，模型名称中的版本空格会统一处理。Participating 集合及 Issue 详情在同一次提交的匹配阶段复用；范围或状态不符合条件的候选会在 Dashboard 显示排除原因。
+
+每次提交的匹配结果会保存在本地数据库中。从 Dashboard 左侧导航进入独立的「Issue 匹配结果」模块，可查看提交来源（手动 / MCP / API）、关联的日志条目、Issue 链接、实际评论正文和跳过或失败原因；概览页不再展示这部分内容。结果页面可见时每 15 秒刷新，并支持分页查看自己的历史记录。日志保存后的结果提示也直接链接到该模块。未配置连接、非当日日志以及同步失败也会留下结果。新增记录从启用此功能后的提交开始，不会重新评论历史日志。
+
+评论的发布身份由 `MOBIUS_PAT` 决定，令牌所属账号必须与日志作者邮箱相同，否则不发表评论。Codex 中配置的 `mobius_mcp` 连接不会自动成为 WorkTrace 服务器的凭据；请将令牌只放在服务器环境变量中。
+
 不要在聊天内容、工作日志或代码中保存明文 API Key；请将其存入 Agent 的安全环境变量（例如 `WORKTRACE_API_KEY`）。
 
 ## 部署

@@ -3,6 +3,7 @@ import { isAdminEmail } from './access';
 import { decryptApiKey, verifyApiKey } from './api-keys';
 import { workLogMarkdownContent } from './markdown-work-log';
 import { resolveReportDate, workTraceReportDate } from './report-date';
+import type { MobiusSyncResult, MobiusSyncRun, MobiusSyncSource } from './mobius-sync-result';
 
 type LocalDatabase = Database.Database;
 export type LocalUser = { id: string; email: string; name: string; role: 'ADMIN' | 'MEMBER' };
@@ -25,6 +26,8 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS work_logs (id TEXT PRIMARY KEY, author_id TEXT NOT NULL, report_date TEXT NOT NULL, title TEXT NOT NULL, completed TEXT NOT NULL, in_progress TEXT NOT NULL DEFAULT '', blockers TEXT NOT NULL DEFAULT '', next_plan TEXT NOT NULL DEFAULT '', markdown_content TEXT NOT NULL DEFAULT '', idempotency_key TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS work_log_requests (author_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, work_log_id TEXT NOT NULL REFERENCES work_logs(id) ON DELETE CASCADE, PRIMARY KEY (author_id, idempotency_key));
+    CREATE TABLE IF NOT EXISTS mobius_comment_claims (issue_identifier TEXT NOT NULL, local_date TEXT NOT NULL, work_log_id TEXT NOT NULL REFERENCES work_logs(id) ON DELETE CASCADE, claim_id TEXT NOT NULL, claimed_at TEXT NOT NULL, posted_at TEXT, PRIMARY KEY (issue_identifier, local_date));
+    CREATE TABLE IF NOT EXISTS mobius_sync_runs (id TEXT PRIMARY KEY, work_log_id TEXT NOT NULL REFERENCES work_logs(id) ON DELETE CASCADE, log_title TEXT NOT NULL, report_date TEXT NOT NULL, source TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, finished_at TEXT, result_json TEXT);
     CREATE TABLE IF NOT EXISTS work_log_attachments (id TEXT PRIMARY KEY, work_log_id TEXT NOT NULL REFERENCES work_logs(id) ON DELETE CASCADE, filename TEXT NOT NULL, storage_key TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS api_keys (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, prefix TEXT NOT NULL, lookup_prefix TEXT, hash TEXT NOT NULL, encrypted_secret TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, last_used_at TEXT);
     CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, type TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL);
@@ -46,6 +49,8 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     CREATE INDEX IF NOT EXISTS idx_work_logs_author_report_date ON work_logs(author_id, report_date DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_work_logs_created ON work_logs(created_at DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_work_logs_updated ON work_logs(updated_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_mobius_sync_runs_created ON mobius_sync_runs(created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_mobius_sync_runs_log ON mobius_sync_runs(work_log_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_work_log_attachments_log ON work_log_attachments(work_log_id, created_at ASC);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_work_logs_idempotency ON work_logs(author_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_api_keys_lookup_prefix ON api_keys(lookup_prefix);
@@ -105,6 +110,51 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
 
   return {
     transaction<T>(callback: () => T): T { return sqlite.transaction(callback)(); },
+    startMobiusSyncRun(log: Pick<LocalWorkLog, 'id' | 'title' | 'reportDate'>, source: MobiusSyncSource, now = new Date()): string {
+      const id = crypto.randomUUID();
+      sqlite.prepare("INSERT INTO mobius_sync_runs (id, work_log_id, log_title, report_date, source, status, created_at) VALUES (?, ?, ?, ?, ?, 'matching', ?)")
+        .run(id, log.id, log.title, log.reportDate, source, now.toISOString());
+      return id;
+    },
+    finishMobiusSyncRun(id: string, result: MobiusSyncResult): void {
+      sqlite.prepare('UPDATE mobius_sync_runs SET status = ?, finished_at = ?, result_json = ? WHERE id = ?')
+        .run(result.status, new Date().toISOString(), JSON.stringify(result), id);
+    },
+    listMobiusSyncRuns(authorId: string, options: { limit?: number; cursor?: string; workLogId?: string } = {}) {
+      const limit = Math.min(Math.max(options.limit ?? 10, 1), 50);
+      const cursor = parseCursor(options.cursor);
+      const where = ['work_logs.author_id = ?'];
+      const values: unknown[] = [authorId];
+      if (options.workLogId) { where.push('runs.work_log_id = ?'); values.push(options.workLogId); }
+      if (cursor) { where.push('(runs.created_at < ? OR (runs.created_at = ? AND runs.id < ?))'); values.push(cursor.createdAt, cursor.createdAt, cursor.id); }
+      const rows = sqlite.prepare(`SELECT runs.* FROM mobius_sync_runs runs JOIN work_logs ON work_logs.id = runs.work_log_id WHERE ${where.join(' AND ')} ORDER BY runs.created_at DESC, runs.id DESC LIMIT ?`)
+        .all(...values, limit + 1) as Array<{ id: string; work_log_id: string; log_title: string; report_date: string; source: MobiusSyncSource; status: MobiusSyncRun['status']; created_at: string; finished_at: string | null; result_json: string | null }>;
+      const items: MobiusSyncRun[] = rows.slice(0, limit).map((row) => ({ id: row.id, workLogId: row.work_log_id, logTitle: row.log_title, reportDate: row.report_date, source: row.source, status: row.status, createdAt: row.created_at, finishedAt: row.finished_at, result: row.result_json ? JSON.parse(row.result_json) as MobiusSyncResult : null }));
+      const last = items.at(-1);
+      return { items, nextCursor: rows.length > limit && last ? Buffer.from(JSON.stringify({ createdAt: last.createdAt, id: last.id })).toString('base64url') : null };
+    },
+    claimMobiusComment(issueIdentifier: string, localDate: string, workLogId: string, now = new Date()): string | null {
+      return sqlite.transaction(() => {
+        const current = sqlite.prepare('SELECT claim_id, claimed_at, posted_at FROM mobius_comment_claims WHERE issue_identifier = ? AND local_date = ?')
+          .get(issueIdentifier, localDate) as { claim_id: string; claimed_at: string; posted_at: string | null } | undefined;
+        if (current?.posted_at || (current && now.getTime() - new Date(current.claimed_at).getTime() < 10 * 60_000)) return null;
+        const claimId = crypto.randomUUID();
+        if (current) {
+          const result = sqlite.prepare('UPDATE mobius_comment_claims SET work_log_id = ?, claim_id = ?, claimed_at = ? WHERE issue_identifier = ? AND local_date = ? AND claim_id = ? AND posted_at IS NULL')
+            .run(workLogId, claimId, now.toISOString(), issueIdentifier, localDate, current.claim_id);
+          return result.changes ? claimId : null;
+        }
+        const result = sqlite.prepare('INSERT OR IGNORE INTO mobius_comment_claims (issue_identifier, local_date, work_log_id, claim_id, claimed_at) VALUES (?, ?, ?, ?, ?)')
+          .run(issueIdentifier, localDate, workLogId, claimId, now.toISOString());
+        return result.changes ? claimId : null;
+      })();
+    },
+    markMobiusCommentPosted(claimId: string): void {
+      sqlite.prepare('UPDATE mobius_comment_claims SET posted_at = ? WHERE claim_id = ? AND posted_at IS NULL').run(new Date().toISOString(), claimId);
+    },
+    releaseMobiusCommentClaim(claimId: string): void {
+      sqlite.prepare('DELETE FROM mobius_comment_claims WHERE claim_id = ? AND posted_at IS NULL').run(claimId);
+    },
     diagnostics() {
       return {
         foreignKeys: sqlite.pragma('foreign_keys', { simple: true }) as number,

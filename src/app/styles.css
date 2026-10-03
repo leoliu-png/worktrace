@@ -223,3 +223,48 @@ html,body { background:#f4f7f8; }
 .wt-markdown-editor .wt-markdown-over-limit { color:#ba1a1a; }
 .wt-markdown-paste-error { border-top-color:#f2d4d4; color:#ba1a1a; background:#fff7f7; }
 @media (max-width:700px) { .wt-markdown-toolbar { padding:8px 10px; }.wt-markdown-toolbar-label,.wt-markdown-toolbar-divider { display:none; }.wt-markdown-writing { min-height:420px; padding:14px 10px; }.wt-markdown-codemirror .cm-editor { min-height:420px; }.wt-markdown-codemirror .cm-content { min-height:400px; }.wt-markdown-placeholder { left:34px; } }
+
+.wt-issue-results { margin-bottom:24px; min-width:0; scroll-margin-top:24px; }
+.wt-issue-heading,.wt-issue-actions { display:flex; align-items:center; justify-content:space-between; gap:14px; }
+.wt-issue-actions { flex-shrink:0; font-size:13px; }
+.wt-issue-refresh { padding:7px 12px; border:1px solid #bfd4cf; border-radius:4px; background:#fff; color:#0d7581; cursor:pointer; }
+.wt-issue-refresh:disabled { opacity:.6; cursor:wait; }
+.wt-issue-caption { margin:0 0 18px; color:#6b7e84; font-size:12px; }
+.wt-issue-empty { padding:28px 18px; border:1px dashed #c9ded8; border-radius:6px; color:#6b7e84; line-height:1.8; text-align:center; }
+.wt-issue-runs { display:grid; gap:12px; }
+.wt-issue-runs-preview { max-height:550px; overflow-y:auto; overscroll-behavior:contain; padding-right:4px; }
+.wt-issue-run { border:1px solid #d8e7e3; border-radius:6px; background:#fff; overflow:hidden; }
+.wt-issue-run>summary { position:relative; display:flex; align-items:center; justify-content:space-between; gap:18px; padding:16px 16px 16px 34px; background:#f6faf9; cursor:pointer; list-style:none; }
+.wt-issue-run>summary::-webkit-details-marker { display:none; }
+.wt-issue-run>summary::before { content:'›'; position:absolute; left:14px; font-size:22px; color:#66847c; }
+.wt-issue-run[open]>summary::before { transform:rotate(90deg); }
+.wt-issue-run-title { min-width:0; display:grid; gap:6px; }
+.wt-issue-run-title strong { font-size:14px; overflow-wrap:anywhere; }
+.wt-issue-run-title>span { color:#6b7e84; font-size:12px; }
+.wt-issue-run-counts { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; font-size:12px; color:#6b7e84; }
+.wt-issue-status { display:inline-block; flex-shrink:0; padding:4px 8px; border-radius:4px; background:#edf1f2; color:#526770; font-size:12px; white-space:nowrap; }
+.wt-issue-status.posted { background:#dff3e9; color:#157252; }
+.wt-issue-status.error,.wt-issue-status.partial { background:#fff0e7; color:#9c4b20; }
+.wt-issue-status.matching { background:#e3f2f8; color:#246c87; }
+.wt-issue-run-content { padding:16px; }
+.wt-issue-log-link { display:inline-block; margin-bottom:12px; font-size:13px; }
+.wt-issue-item { padding:14px; border:1px solid #e1ebe7; border-radius:5px; margin-top:12px; min-width:0; }
+.wt-issue-item-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.wt-issue-item-heading>div { min-width:0; }
+.wt-issue-item-heading a { font-size:14px; font-weight:600; color:#0d7581; overflow-wrap:anywhere; }
+.wt-issue-item-heading small { display:block; margin-top:5px; color:#7b8d91; }
+.wt-issue-entry-list { padding-left:20px; margin:12px 0; font-size:13px; line-height:1.9; overflow-wrap:anywhere; }
+.wt-issue-entry-list li>span { margin-right:8px; color:#7b8d91; font-size:12px; }
+.wt-issue-reason { margin:10px 0 0; color:#61777d; font-size:13px; line-height:1.7; }
+.wt-issue-comment { margin-top:14px; padding:14px 16px; border-left:3px solid #8dcbbd; background:#f3faf7; border-radius:4px; overflow-wrap:anywhere; }
+.wt-issue-comment>strong { color:#38675e; font-size:12px; }
+.wt-issue-comment .wt-rich-markdown { font-size:13px; line-height:1.8; }
+.wt-issue-comment .wt-rich-markdown>:last-child { margin-bottom:0; }
+@media (max-width:700px) {
+  .wt-issue-heading { align-items:flex-start; gap:12px; }
+  .wt-issue-actions { gap:8px; flex-wrap:wrap; }
+  .wt-issue-run>summary { align-items:flex-start; flex-direction:column; gap:12px; }
+  .wt-issue-run-counts { justify-content:flex-start; }
+  .wt-issue-run-content,.wt-issue-item { padding:12px; }
+  .wt-issue-comment { padding:12px; }
+}

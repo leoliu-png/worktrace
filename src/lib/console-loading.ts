@@ -4,6 +4,7 @@ export function consoleLoadingMessage(pathname: string) {
   if (pathname === '/console/logs/new') return '正在加载新建日志…';
   if (pathname === '/console/api-keys') return '正在加载 API 密钥…';
   if (pathname === '/console/my-logs') return '正在加载我的日志…';
+  if (pathname === '/console/issue-matches') return '正在加载 Issue 匹配结果…';
   if (pathname === '/console/admin/members') return '正在加载成员管理…';
   if (pathname === '/console/admin/logs') return '正在加载日志管理…';
   if (pathname === '/console/admin/audit') return '正在加载安全审计…';
