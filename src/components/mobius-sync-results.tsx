@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { MarkdownContent } from './markdown-content';
 import { MobiusResultsRefresh } from './mobius-results-refresh';
+import { MobiusMatchDetails } from './mobius-match-details';
 import type { MobiusSyncReason, MobiusSyncRun } from '@/lib/mobius-sync-result';
 import { formatWorkTraceDateTime } from '@/lib/time';
 
@@ -10,10 +11,17 @@ const reasons: Record<MobiusSyncReason, [string, string]> = {
   different_author: ['这次保存者与日志作者不同，未执行同步。', 'The editor is not the log author; sync was skipped.'],
   past_report_date: ['该日志日期不是今天，未自动评论。', 'This log is not for today; no comments were posted.'],
   empty: ['没有可用于匹配的日志条目。', 'There are no log entries to match.'],
+  planned_work: ['Todo / 待办 / 明日计划属于尚未开展的工作，未参与 Issue 匹配。', 'Todo and future plans are not started work and were excluded from issue matching.'],
   entry_limit: ['本次条目过多，此条未参与匹配。', 'This entry exceeded the per-submission matching limit.'],
   multiple_ids: ['条目包含多个 Issue 编号，无法确定对应关系。', 'The entry contains multiple issue identifiers.'],
   no_match: ['你的 Participating 列表中没有找到明确匹配的 Issue。', 'No clear match was found in your Participating list.'],
   ambiguous: ['存在多个相似的 Issue，未自动评论。', 'Multiple issues matched; no comment was posted.'],
+  low_confidence: ['Jev 的判断未达到自动匹配阈值，未发表评论。', 'The Jev decision did not meet the automatic matching thresholds; no comment was posted.'],
+  jev_not_configured: ['Jev 的 OpenRouter 密钥缺失或无效；日志已保存，未发表评论。', 'The OpenRouter key for Jev is missing or invalid; the log was saved without comments.'],
+  jev_invalid_configuration: ['Jev 模型或匹配阈值配置有误；日志已保存，未发表评论。', 'The Jev model or matching thresholds are misconfigured; the log was saved without comments.'],
+  jev_unavailable: ['Jev 调用失败或超时；日志已保存，未发表评论。', 'Jev was unavailable or timed out; the log was saved without comments.'],
+  jev_invalid_response: ['Jev 返回的判断未通过校验；日志已保存，未发表评论。', 'The Jev response failed validation; the log was saved without comments.'],
+  jev_context_limit: ['Participating 候选超过 Jev 的处理范围，未删减候选或发表评论。', 'The Participating collection exceeds the Jev input limits; candidates were not dropped and no comment was posted.'],
   done: ['候选 Issue 已是 Done，此匹配未采用，也未改投其他 Issue。', 'The candidate is Done; the match was rejected without falling back to another issue.'],
   not_related: ['该 Issue 不在你的 My issues → Participating 列表中，未采用此匹配。', 'This issue is outside your My issues → Participating list; the match was rejected.'],
   participating_unavailable: ['无法确认你的 Participating 列表，已停止自动评论；日志已保存。', 'Your Participating list could not be verified; automatic comments were stopped and the log was saved.'],
@@ -49,6 +57,7 @@ export function MobiusSyncResults({ runs, locale, history = false }: { runs: Mob
             <div className="wt-issue-item-heading"><div>{item.identifier ? <><a href={`https://mobius.feedmob.com/issue/${encodeURIComponent(item.identifier)}`} target="_blank" rel="noopener noreferrer">{item.identifier} · {item.title}</a>{item.issueState && <small>{item.issueState}</small>}</> : <strong>{text('日志条目', 'Log entry')}</strong>}</div><span className={`wt-issue-status ${item.status}`}>{itemStatuses[item.status]}</span></div>
             <ul className="wt-issue-entry-list">{item.entries.map((entry, entryIndex) => <li key={entryIndex}><span>{entry.section}</span>{entry.text}</li>)}</ul>
             {item.reason && <p className="wt-issue-reason">{reasonText(item.reason)}</p>}
+            <MobiusMatchDetails decisions={item.matching} locale={locale} />
             {item.status === 'posted' && item.commentBody && <div className="wt-issue-comment"><strong>{text('实际评论内容', 'Posted comment')}</strong><MarkdownContent value={item.commentBody} /></div>}
           </article>)}
         </div>

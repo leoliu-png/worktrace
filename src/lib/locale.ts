@@ -1,15 +1,15 @@
 export type Locale = 'zh' | 'en';
 
 const messages = {
-  zh: { console: '控制台', newLog: '新建日志', overview: '概览', logs: '所有日志', myLogs: '我的日志', issueMatches: 'Issue 匹配结果', apiKeys: 'API 密钥', members: '成员管理', access: '权限控制', adminLogs: '日志管理', audit: '安全审计', docs: '文档', changelog: '更新日志', searchLogs: '搜索日志…', login: 'Google Workspace 登录', enterpriseTrace: '企业级智能追踪', capture: '记录工作，追踪进展。', onlyDomain: '（仅限 @feedmob.com）', mcp: '通过 MCP 接入', api: '通过 REST API 接入', mcpDescription: '让你的 AI Agent 自动将工作成果写入 WorkTrace。', apiDescription: '用个人 API Key 将结构化工作日志直接提交到团队空间。' },
-  en: { console: 'Console', newLog: 'New log', overview: 'Overview', logs: 'All logs', myLogs: 'My logs', issueMatches: 'Issue matching results', apiKeys: 'API keys', members: 'Members', access: 'Access control', adminLogs: 'Log management', audit: 'Security audit', docs: 'Docs', changelog: 'Changelog', searchLogs: 'Search logs…', login: 'Sign in with Google Workspace', enterpriseTrace: 'Enterprise work tracing', capture: 'Capture work. Trace progress.', onlyDomain: '(@feedmob.com only)', mcp: 'Connect via MCP', api: 'Connect via REST API', mcpDescription: 'Let your AI agent automatically write work results to WorkTrace.', apiDescription: 'Use a personal API key to submit structured work logs directly to the team.' },
+  zh: { feedback: '建议反馈', feedbackManagement: '反馈管理', console: '控制台', newLog: '新建日志', overview: '概览', logs: '所有日志', myLogs: '我的日志', issueMatches: 'Issue 匹配结果', apiKeys: 'API 密钥', members: '成员管理', access: '权限控制', adminLogs: '日志管理', audit: '安全审计', docs: '文档', changelog: '更新日志', searchLogs: '搜索日志…', login: 'Google Workspace 登录', enterpriseTrace: '企业级智能追踪', capture: '记录工作，追踪进展。', onlyDomain: '（仅限 @feedmob.com）', mcp: '通过 MCP 接入', api: '通过 REST API 接入', mcpDescription: '让你的 AI Agent 自动将工作成果写入 WorkTrace。', apiDescription: '用个人 API Key 将结构化工作日志直接提交到团队空间。' },
+  en: { feedback: 'Feedback', feedbackManagement: 'Feedback management', console: 'Console', newLog: 'New log', overview: 'Overview', logs: 'All logs', myLogs: 'My logs', issueMatches: 'Issue matching results', apiKeys: 'API keys', members: 'Members', access: 'Access control', adminLogs: 'Log management', audit: 'Security audit', docs: 'Docs', changelog: 'Changelog', searchLogs: 'Search logs…', login: 'Sign in with Google Workspace', enterpriseTrace: 'Enterprise work tracing', capture: 'Capture work. Trace progress.', onlyDomain: '(@feedmob.com only)', mcp: 'Connect via MCP', api: 'Connect via REST API', mcpDescription: 'Let your AI agent automatically write work results to WorkTrace.', apiDescription: 'Use a personal API key to submit structured work logs directly to the team.' },
 } as const;
 
 export type TranslationKey = keyof typeof messages.zh;
 export function translate(locale: Locale, key: TranslationKey) { return messages[locale][key]; }
 
 const pageTranslations: Record<string, string> = {
-  '日志列表': 'Log list', '我的工作轨迹': 'My work trace', 'API 密钥管理': 'API key management', '成员管理': 'Member management',
+  '建议反馈': 'Feedback', '反馈管理': 'Feedback management', '日志列表': 'Log list', '我的工作轨迹': 'My work trace', 'API 密钥管理': 'API key management', '成员管理': 'Member management',
   '权限控制': 'Access control', '日志管理': 'Log management', '安全审计': 'Security audit', '工作日志详情': 'Work log details',
   'Issue 匹配结果': 'Issue matching results', '查看日志与 Mobius Issue 的匹配和评论记录': 'View log matches and comments for Mobius issues',
   '编辑日志': 'Edit log', '新建日志': 'New log', '创建、管理和吊销用于访问 WorkTrace API 的个人密钥。': 'Create, manage, and revoke personal keys for accessing the WorkTrace API.',

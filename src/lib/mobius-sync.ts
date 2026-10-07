@@ -1,11 +1,12 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { createDatabase, type LocalWorkLog } from './db';
-import { issueIsDone, issueUpdatedToday, mobiusCommentBody, workLogEntries, type MobiusIssue, type WorkLogEntry } from './mobius-work-log';
+import { issueIsDone, issueUpdatedToday, mobiusCommentBody, plannedWorkLogEntries, workLogEntries, type MobiusIssue, type WorkLogEntry } from './mobius-work-log';
 import { createMobiusIssueMatcher } from './mobius-issue-matcher';
 import { createMobiusParticipatingScope, MobiusParticipatingScopeError } from './mobius-participating-scope';
 import { workTraceReportDate } from './report-date';
 import type { MobiusSyncItem, MobiusSyncReason, MobiusSyncResult, MobiusSyncSource } from './mobius-sync-result';
+import type { MobiusMatchDecision } from './mobius-match';
 
 export type { MobiusSyncResult } from './mobius-sync-result';
 export type MobiusSyncDatabase = Pick<ReturnType<typeof createDatabase>, 'startMobiusSyncRun' | 'finishMobiusSyncRun' | 'claimMobiusComment' | 'markMobiusCommentPosted' | 'releaseMobiusCommentClaim'>;
@@ -89,13 +90,15 @@ export async function syncMobiusForWorkLog(log: LocalWorkLog, author: { email?: 
     }
     if (log.reportDate !== workTraceReportDate(now)) { result.reason = 'past_report_date'; return result; }
 
+    const planned = plannedWorkLogEntries(log);
+    for (const entry of planned) result.items.push({ status: 'skipped', entries: [entry], reason: 'planned_work' });
     const allEntries = workLogEntries(log);
     const entries = allEntries.slice(0, 30);
     for (const entry of allEntries.slice(30)) {
       result.unmatched++;
       result.items.push({ status: 'unmatched', entries: [entry], reason: 'entry_limit' });
     }
-    if (!entries.length) { result.reason = 'empty'; return result; }
+    if (!entries.length) { result.reason = planned.length ? 'planned_work' : 'empty'; return result; }
 
     client = await connectMobius(token);
     const identity = await call(client, 'whoami', {});
@@ -112,28 +115,35 @@ export async function syncMobiusForWorkLog(log: LocalWorkLog, author: { email?: 
     await participating.list();
     connectionReason = 'connection_failed';
     const findIssue = createMobiusIssueMatcher((name, args) => call(client!, name, args), participating);
-    const grouped = new Map<string, { issue: MobiusIssue; entries: WorkLogEntry[] }>();
+    await findIssue.prepare(entries);
+    const grouped = new Map<string, { issue: MobiusIssue; entries: WorkLogEntry[]; matching: MobiusMatchDecision[] }>();
     for (const entry of entries) {
       try {
         const match = await findIssue(entry);
         const issue = match.issue;
+        const matching = match.decision ? [match.decision] : [];
+        if (match.reason?.startsWith('jev_')) {
+          result.failed++;
+          result.items.push({ status: 'error', entries: [entry], reason: match.reason, matching });
+          continue;
+        }
         if (match.reason || !issue) {
           result.unmatched++;
-          result.items.push({ status: match.reason === 'done' || match.reason === 'stopped' ? 'skipped' : 'unmatched', entries: [entry], reason: match.reason ?? 'no_match', ...issueFields(issue) });
+          result.items.push({ status: match.reason === 'done' || match.reason === 'stopped' ? 'skipped' : 'unmatched', entries: [entry], reason: match.reason ?? 'no_match', matching, ...issueFields(issue) });
           continue;
         }
         const previous = grouped.get(issue.identifier);
-        grouped.set(issue.identifier, { issue, entries: [...(previous?.entries ?? []), entry] });
+        grouped.set(issue.identifier, { issue, entries: [...(previous?.entries ?? []), entry], matching: [...(previous?.matching ?? []), ...matching] });
       } catch (error) {
         result.failed++;
-        result.items.push({ status: 'error', entries: [entry], reason: 'matching_failed' });
+        result.items.push({ status: 'error', entries: [entry], reason: error instanceof MobiusParticipatingScopeError ? 'participating_unavailable' : 'matching_failed' });
         reportSyncError('matching', error, token);
       }
     }
 
     const today = workTraceReportDate(now);
     for (const [identifier, group] of grouped) {
-      const item: MobiusSyncItem = { status: 'skipped', entries: group.entries, ...issueFields(group.issue) };
+      const item: MobiusSyncItem = { status: 'skipped', entries: group.entries, matching: group.matching, ...issueFields(group.issue) };
       result.items.push(item);
       let claimId: string | null = null;
       try {

@@ -21,7 +21,7 @@ type ConsoleShellProps = {
 
 export function ConsoleShell({ title, eyebrow = 'WORKTRACE CONSOLE', activePath, role = 'MEMBER', user, locale, overviewPeriod = 'week', compactViewport = false, children }: ConsoleShellProps) {
   const navigation = visibleNavigation(role);
-  const navigationLabels: Record<string, TranslationKey> = { overview: 'overview', logs: 'logs', 'new-log': 'newLog', 'api-keys': 'apiKeys', 'my-logs': 'myLogs', 'issue-matches': 'issueMatches', members: 'members', access: 'access', 'admin-logs': 'adminLogs', audit: 'audit' };
+  const navigationLabels: Record<string, TranslationKey> = { overview: 'overview', logs: 'logs', 'new-log': 'newLog', 'api-keys': 'apiKeys', 'my-logs': 'myLogs', 'issue-matches': 'issueMatches', feedback: 'feedback', 'admin-feedback': 'feedbackManagement', members: 'members', access: 'access', 'admin-logs': 'adminLogs', audit: 'audit' };
   const labelFor = (id: string) => t(locale, navigationLabels[id]);
 
   return <ConsoleNavigationProgress><div className={`stitch-console${compactViewport ? ' wt-compact-viewport' : ''}`}>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { updateWorkLog } from '@/app/actions/work-logs';
 import { ConsolePageFrame } from '@/components/console-page-frame';
 import { MarkdownEditor } from '@/components/markdown-editor';
+import { WorkLogSubmissionStatus, WorkLogSubmitButton } from '@/components/work-log-submit';
 import { createDatabase } from '@/lib/db';
 import { workLogMarkdownContent } from '@/lib/markdown-work-log';
 import { currentConsoleUser } from '@/lib/session';
@@ -29,7 +30,8 @@ export default async function EditLogPage({ params, searchParams }: { params: Pr
         <p className="wt-description">当前文字显示 Markdown 标记，移开焦点后显示排版；标题与缩进可折叠。</p>
       </div>
       <MarkdownEditor initialValue={workLogMarkdownContent(log)} />
-      <div className="wt-form-actions"><Link className="wt-secondary-button" href={`/console/logs/${log.id}${suffix}`}>取消</Link><button className="wt-primary-button" type="submit">保存修改</button></div>
+      <WorkLogSubmissionStatus />
+      <div className="wt-form-actions"><Link className="wt-secondary-button" href={`/console/logs/${log.id}${suffix}`}>取消</Link><WorkLogSubmitButton editing /></div>
     </form>
   </ConsolePageFrame>;
 }

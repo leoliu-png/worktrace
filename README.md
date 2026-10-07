@@ -9,6 +9,7 @@ WorkTrace 是面向团队的工作日志系统。成员可以在网页中填写�
 - **企业 Google Workspace 登录**：当前仅允许 `@feedmob.com` 域名账号登录。
 - **结构化日报**：记录标题、完成事项、进行中、阻塞 / 风险和明日计划，并支持图片附件。
 - **团队协作**：浏览、搜索和筛选团队工作日志；作者可维护自己的日志。
+- **建议反馈**：用户可提交功能建议、问题和使用体验，查看自己的反馈及处理回复；管理员可在反馈管理中回复并更新状态。反馈保存到现有 SQLite 数据库，升级时会自动创建所需数据表。
 - **管理员控制台**：成员角色、访问域名、全局日志和安全审计管理。
 - **个人 API Key**：在控制台创建、回显、启用、禁用或撤销用于自动化访问的密钥。
 - **AI Agent 集成**：通过 REST API、MCP 服务和 WorkTrace Skill 接入 Agent；创建日志前可先生成草稿并由用户确认。
@@ -51,7 +52,10 @@ cp .env.example .env
 | `GOOGLE_CLIENT_ID` | Google OAuth 客户端 ID。 |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth 客户端密钥。 |
 | `KEY_ENCRYPTION_SECRET` | 用于加密 API Key 的密钥；生产环境必须替换示例值。 |
+| `ADMIN_EMAILS` | 额外初始管理员邮箱，以逗号分隔；未配置时为 `linden@feedmob.com`。内置管理员 `leo_liu@feedmob.com` 始终生效。 |
 | `LOCAL_DATABASE_PATH` | SQLite 数据库路径；本地可使用 `worktrace-local.db`。 |
+
+`leo_liu@feedmob.com` 已写入代码作为内置管理员。部署新版并重启服务后，系统首次连接数据库时会将已有的该账号升级为管理员并记录审计事件；该账号首次登录创建时也会自动获得管理员角色。服务器保留旧的 `ADMIN_EMAILS` 配置也不影响这个规则。内置管理员不能在成员管理中降为普通成员；其他成员角色仍按现有方式管理。
 
 在 Google OAuth 客户端中添加本地回调地址：
 
@@ -137,6 +141,27 @@ MOBIUS_SYNC_AUTHOR_EMAILS=需要启用同步的成员邮箱
 每次提交的匹配结果会保存在本地数据库中。从 Dashboard 左侧导航进入独立的「Issue 匹配结果」模块，可查看提交来源（手动 / MCP / API）、关联的日志条目、Issue 链接、实际评论正文和跳过或失败原因；概览页不再展示这部分内容。结果页面可见时每 15 秒刷新，并支持分页查看自己的历史记录。日志保存后的结果提示也直接链接到该模块。未配置连接、非当日日志以及同步失败也会留下结果。新增记录从启用此功能后的提交开始，不会重新评论历史日志。
 
 评论的发布身份由 `MOBIUS_PAT` 决定，令牌所属账号必须与日志作者邮箱相同，否则不发表评论。Codex 中配置的 `mobius_mcp` 连接不会自动成为 WorkTrace 服务器的凭据；请将令牌只放在服务器环境变量中。
+
+#### 使用 Jev 匹配 Issue
+
+在 WorkTrace 服务环境中启用：
+
+```dotenv
+MOBIUS_MATCHER=jev
+OPENROUTER_API_KEY=你的_OpenRouter_密钥
+JEV_MODEL=typesafe/jev-1.13
+JEV_MIN_PROBABILITY=0.75
+JEV_MIN_CONFIDENCE=0.70
+JEV_MIN_MARGIN=0.20
+```
+
+WorkTrace 只匹配已开展的工作；Todo、待办、明日计划、带 `Todo:` / `待办：` 前缀的条目和未勾选的任务框不参与匹配，并在结果中记录跳过原因。网页 Markdown 和 MCP / API 结构化字段使用相同规则。系统从 Participating Issue 的真实标题、人工描述和人工评论摘录组装候选说明，排除 AI 背景补全及 WorkTrace 自动评论。同一项目的后续排查、维护、优化和新增功能可以对应原项目 Issue；项目名可以由人工评论或项目链接建立，单独使用相同模型或工具不能建立匹配。每个实际工作条目对应一个 `choice` 问题，选项为候选 Issue 编号和 `NONE`（没有明确匹配）。同一次请求可以判断多个条目；不读取过去七天的工作日志，也不让 Jev 生成说明或评论。请求通过 [OpenRouter Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request) 调用，相关日志条目和候选摘录会发送到 OpenRouter / TypeSafe，并计入该 OpenRouter 账号的用量。
+
+Jev 返回选中编号、各选项概率和 `confidence`。选择概率与 confidence 分别保存；领先幅度是选中选项与第二名的概率之差。这三项都达到配置阈值后才采用匹配。阈值是初始策略，不代表已验证的准确率，尤其 [Jev 官方说明中文等 CJK 内容目前准确率较低](https://docs.typesafe.ai/concepts/state)。最佳候选是 Done / Completed 时直接跳过，不重新选择活跃 Issue。Participating 范围、令牌身份、当日更新和去重检查仍由 WorkTrace 在评论前执行。
+
+「Issue 匹配结果」会记录每个条目的匹配方式、模型、前三个选项的概率及未评论原因。Jev 失败、缺少密钥、配置错误或返回非法候选时不降级到关键词自动评论。每次请求有 15 秒超时，Jev 请求批次最多并行两个，并共用 45 秒截止时间；超过上下文预算时缩短摘录和拆分条目批次，始终保留完整候选集合，无法容纳时停止该次语义匹配。当前最多处理 254 个候选 Issue，另保留 `NONE` 选项。
+
+日志中明确写出的唯一 Issue 编号仍直接匹配，无需 Jev，且经过相同范围和状态检查。未设置 `MOBIUS_MATCHER` 时继续使用原有关键词规则；如需切回，可设置 `MOBIUS_MATCHER=rules`。修改环境变量后重新启动服务，新提交会使用新设置，历史结果不会自动重算。
 
 不要在聊天内容、工作日志或代码中保存明文 API Key；请将其存入 Agent 的安全环境变量（例如 `WORKTRACE_API_KEY`）。
 

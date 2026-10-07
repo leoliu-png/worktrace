@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { deleteWorkLog } from '@/app/actions/work-logs';
 import { ConsolePageFrame } from '@/components/console-page-frame';
 import { MarkdownContent } from '@/components/markdown-content';
+import { MarkdownEditor } from '@/components/markdown-editor';
 import { MobiusSyncNotice } from '@/components/mobius-sync-notice';
 import { createDatabase } from '@/lib/db';
 import { workLogMarkdownContent } from '@/lib/markdown-work-log';
@@ -45,7 +46,7 @@ export default async function LogDetailPage({ params, searchParams }: { params: 
         <span className="wt-source">Web</span>
         <p>{log.authorName} · {log.authorEmail} · 日报日期：{log.reportDate?.replaceAll('-', '/') ?? formatWorkTraceDateTime(log.createdAt, 'zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })} · 最后提交：{formatWorkTraceDateTime(log.updatedAt ?? log.createdAt, 'zh-CN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
       </header>
-      <section><MarkdownContent value={markdown} /></section>
+      <section><MarkdownEditor initialValue={markdown} readOnly><MarkdownContent value={markdown} /></MarkdownEditor></section>
       {separateAttachments.length > 0 && <section><h3>图片附件</h3><div className="wt-attachment-grid">{separateAttachments.map((attachment) => <a key={attachment.id} href={`/api/v1/work-logs/${log.id}/attachments/${attachment.id}`} target="_blank" rel="noreferrer"><img src={`/api/v1/work-logs/${log.id}/attachments/${attachment.id}`} alt={attachment.filename} /><span>{attachment.filename}</span></a>)}</div></section>}
     </article>
   </ConsolePageFrame>;

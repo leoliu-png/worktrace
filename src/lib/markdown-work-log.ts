@@ -1,3 +1,5 @@
+import { workLogSectionHeading, type WorkLogSection } from './work-log-sections';
+
 export const maxMarkdownCharacters = 50_000;
 
 type WorkLogContent = {
@@ -48,16 +50,16 @@ export function parseMarkdownWorkLog(value: string) {
 
   const completed: string[] = [];
   const otherSections = { inProgress: [] as string[], blockers: [] as string[], nextPlan: [] as string[] };
-  let currentSection: 'completed' | keyof typeof otherSections | undefined;
+  let currentSection: WorkLogSection | undefined;
+  let planDepth: number | undefined;
   for (const line of lines) {
-    const section = line.match(/^\s*#{1,6}\s+(.+)$/);
-    if (section) {
-      const name = section[1].trim();
-      currentSection = /完成|completed|done/i.test(name) ? 'completed'
-        : /进行中|in progress/i.test(name) ? 'inProgress'
-        : /阻塞|风险|blockers?|risks?/i.test(name) ? 'blockers'
-        : /计划|下一步|next plan/i.test(name) ? 'nextPlan'
-        : undefined;
+    const heading = line.match(/^\s*(#{1,6})\s+(.+)$/);
+    const named = workLogSectionHeading(heading?.[2] ?? line, Boolean(heading));
+    if (heading || named) {
+      const depth = heading?.[1].length ?? 0;
+      if (heading && planDepth !== undefined && planDepth > 0 && depth > planDepth) continue;
+      currentSection = named;
+      planDepth = named === 'nextPlan' ? depth : undefined;
       continue;
     }
     if (currentSection === 'completed') {

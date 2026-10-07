@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createDatabase } from './db';
-import { issueUpdatedToday, matchingTerms, selectMatchingIssue, workLogEntries, type MobiusIssue } from './mobius-work-log';
+import { issueUpdatedToday, matchingTerms, plannedWorkLogEntries, selectMatchingIssue, workLogEntries, type MobiusIssue } from './mobius-work-log';
+import { parseMarkdownWorkLog } from './markdown-work-log';
 
 describe('Mobius work-log matching', () => {
   it('uses an explicit issue identifier and respects the stop flag', () => {
@@ -38,6 +39,33 @@ describe('Mobius work-log matching', () => {
   it('extracts the submitted entry instead of the whole log', () => {
     const entries = workLogEntries({ completed: ['- 完成 Binance Youappi VE/JP spend 录入'], inProgress: '', blockers: '', nextPlan: '', markdownContent: '' });
     expect(entries).toEqual([{ section: '完成事项', text: '完成 Binance Youappi VE/JP spend 录入' }]);
+  });
+
+  it('excludes structured future plans from matching and keeps actual progress and blockers', () => {
+    const log = { completed: ['RSI 运行检查发现失败'], inProgress: 'WorkTrace 使用 Jev 改进匹配', blockers: '平台定时任务异常待排查', nextPlan: '- AI-2593 明日检查平台', markdownContent: '' };
+    expect(workLogEntries(log).map((entry) => entry.text)).toEqual(['RSI 运行检查发现失败', 'WorkTrace 使用 Jev 改进匹配', '平台定时任务异常待排查']);
+    expect(plannedWorkLogEntries(log)).toEqual([{ section: '明日计划', text: 'AI-2593 明日检查平台' }]);
+  });
+
+  it('maps plain and formatted Todo headings to future plans before extracting actual work', () => {
+    const log = parseMarkdownWorkLog('# 日志\n## Done\n1. 检查 RSI 运行异常\n\n**Todos:**\n1. AI-2593 明日检查平台\n\n## 进行中\n正在实现 WorkTrace 匹配')!;
+    expect(log.nextPlan).toContain('AI-2593 明日检查平台');
+    expect(log.completed).toEqual(['检查 RSI 运行异常']);
+    expect(workLogEntries(log).map((entry) => entry.text)).toEqual(['检查 RSI 运行异常', '正在实现 WorkTrace 匹配']);
+    expect(plannedWorkLogEntries(log).map((entry) => entry.text)).toEqual(['AI-2593 明日检查平台']);
+  });
+
+  it('excludes an entire nested Todo block from Markdown-only logs and resumes at a peer heading', () => {
+    const log = { completed: [], inProgress: '', blockers: '', nextPlan: '', markdownContent: '# 日志\n## 待办\n### 内部平台\n- AI-2593 明日检查平台\n### 日志系统\n- 接入 Jev 新功能\n## Done\n检查 RSI 运行异常' };
+    expect(workLogEntries(log)).toEqual([{ section: '完成事项', text: '检查 RSI 运行异常' }]);
+    expect(plannedWorkLogEntries(log)).toHaveLength(2);
+  });
+
+  it('excludes unfinished checkboxes and labeled Todo items without hiding actual Todo-feature development', () => {
+    const log = { completed: ['- [ ] AI-2593 检查平台', '- [x] 实现 Todo 编辑功能', '待办：明日检查 RSI 运行'], inProgress: '', blockers: '', nextPlan: '', markdownContent: '' };
+    expect(workLogEntries(log)).toEqual([{ section: '完成事项', text: '实现 Todo 编辑功能' }]);
+    expect(plannedWorkLogEntries(log)).toHaveLength(2);
+    expect(selectMatchingIssue({ section: 'Todos', text: 'AI-2593 检查平台' }, [{ identifier: 'AI-2593', title: '内部平台' }])).toBeUndefined();
   });
 });
 

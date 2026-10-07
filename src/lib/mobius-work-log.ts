@@ -1,5 +1,7 @@
 import type { LocalWorkLog } from './db';
 import { workTraceReportDate } from './report-date';
+import type { JevFailureReason, MobiusMatchDecision } from './mobius-match';
+import { isPlannedWorkItem, workLogSectionHeading } from './work-log-sections';
 
 export type MobiusIssue = {
   identifier: string;
@@ -43,29 +45,63 @@ function cleanEntry(value: string) {
     .slice(0, 600);
 }
 
-export function workLogEntries(log: Pick<LocalWorkLog, 'completed' | 'inProgress' | 'blockers' | 'nextPlan' | 'markdownContent'>) {
+function sectionEntries(value: string, defaultSection: string, plansOnly = false) {
   const entries: WorkLogEntry[] = [];
-  for (const [section, values] of [
-    ['完成事项', log.completed],
-    ['进行中', log.inProgress.split(/\r?\n/)],
-    ['阻塞 / 风险', log.blockers.split(/\r?\n/)],
-    ['明日计划', log.nextPlan.split(/\r?\n/)],
-  ] as const) {
-    for (const value of values) {
-      const text = cleanEntry(value);
-      if (text.length >= 5 && !entries.some((entry) => entry.section === section && entry.text === text)) {
-        entries.push({ section, text });
-      }
+  let section = defaultSection;
+  let planDepth: number | undefined = plansOnly ? 0 : undefined;
+  let fence: string | undefined;
+  const labels = { completed: '完成事项', inProgress: '进行中', blockers: '阻塞 / 风险', nextPlan: '明日计划' };
+  for (const line of value.split(/\r?\n/)) {
+    const codeFence = line.match(/^\s*(`{3,}|~{3,})/);
+    if (codeFence) {
+      if (!fence) fence = codeFence[1][0];
+      else if (codeFence[1][0] === fence) fence = undefined;
+      continue;
     }
-  }
-  if (!entries.length) {
-    for (const line of log.markdownContent.split(/\r?\n/)) {
-      if (/^\s*(?:#{1,6}\s+|```|~~~)/.test(line)) continue;
-      const text = cleanEntry(line);
-      if (text.length >= 5 && !entries.some((entry) => entry.text === text)) entries.push({ section: '日志内容', text });
+    if (fence) continue;
+    const heading = line.match(/^\s*(#{1,6})\s+(.+)$/);
+    const named = workLogSectionHeading(heading?.[2] ?? line, Boolean(heading));
+    if (heading || named) {
+      const depth = heading?.[1].length ?? 0;
+      if (heading && planDepth !== undefined && planDepth > 0 && depth > planDepth) continue;
+      planDepth = plansOnly || named === 'nextPlan' ? depth : undefined;
+      section = named ? labels[named] : defaultSection;
+      continue;
     }
+    const planned = planDepth !== undefined || isPlannedWorkItem(line);
+    const text = cleanEntry(line);
+    if (text.length >= 5) entries.push({ section: planned ? '明日计划' : section, text });
   }
   return entries;
+}
+
+type EntryLog = Pick<LocalWorkLog, 'completed' | 'inProgress' | 'blockers' | 'nextPlan' | 'markdownContent'>;
+
+function submittedEntries(log: EntryLog) {
+  const structured = [
+    ...sectionEntries(log.completed.join('\n'), '完成事项'),
+    ...sectionEntries(log.inProgress, '进行中'),
+    ...sectionEntries(log.blockers, '阻塞 / 风险'),
+    ...sectionEntries(log.nextPlan, '明日计划', true),
+  ];
+  // Markdown is also examined for Todo blocks the legacy parser did not map.
+  const markdown = sectionEntries(log.markdownContent, '日志内容');
+  const actual = structured.filter((entry) => entry.section !== '明日计划');
+  const planned = [...structured, ...markdown].filter((entry) => entry.section === '明日计划');
+  const entries = [...(actual.length ? actual : markdown.filter((entry) => entry.section !== '明日计划')), ...planned];
+  return entries.filter((entry, index) => entries.findIndex((other) => other.section === entry.section && other.text === entry.text) === index);
+}
+
+export function workLogEntries(log: EntryLog) {
+  return submittedEntries(log).filter((entry) => entry.section !== '明日计划');
+}
+
+export function plannedWorkLogEntries(log: EntryLog) {
+  return submittedEntries(log).filter((entry) => entry.section === '明日计划');
+}
+
+export function isPlannedWorkEntry(entry: WorkLogEntry) {
+  return workLogSectionHeading(entry.section, true) === 'nextPlan' || isPlannedWorkItem(entry.text);
 }
 
 function normalized(value: string) {
@@ -142,10 +178,15 @@ export function issueMatchScore(entry: WorkLogEntry, issue: MobiusIssue) {
   return closed ? score * 0.85 : score;
 }
 
-export type MobiusIssueMatch = { issue?: MobiusIssue; reason?: 'multiple_ids' | 'no_match' | 'ambiguous' | 'done' | 'stopped' | 'not_related' };
+export type MobiusIssueMatch = {
+  issue?: MobiusIssue;
+  reason?: 'multiple_ids' | 'no_match' | 'ambiguous' | 'done' | 'stopped' | 'not_related' | 'low_confidence' | 'planned_work' | JevFailureReason;
+  decision?: MobiusMatchDecision;
+};
 
 export function matchWorkLogEntry(entry: WorkLogEntry, issues: MobiusIssue[]): MobiusIssueMatch {
-  const explicit = [...entry.text.matchAll(/\b([A-Z][A-Z0-9]{1,11}-\d+)\b/gi)].map((match) => match[1].toUpperCase());
+  if (isPlannedWorkEntry(entry)) return { reason: 'planned_work' };
+  const explicit = [...new Set([...entry.text.matchAll(/\b([A-Z][A-Z0-9]{1,11}-\d+)\b/gi)].map((match) => match[1].toUpperCase()))];
   if (explicit.length === 1) {
     const issue = issues.find((candidate) => candidate.identifier.toUpperCase() === explicit[0]);
     if (!issue) return { reason: 'no_match' };

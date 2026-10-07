@@ -33,6 +33,7 @@ function setup(text = '完成 AI-100 的 WorkTrace Markdown 编辑优化', filen
 beforeEach(() => {
   vi.stubEnv('MOBIUS_PAT', 'test-token');
   vi.stubEnv('MOBIUS_SYNC_AUTHOR_EMAILS', 'member@feedmob.com');
+  vi.stubEnv('MOBIUS_MATCHER', 'rules');
   issues.clear();
   issues.set(issue.identifier, { ...issue });
   participating.clear();
@@ -89,6 +90,23 @@ describe('persisted Mobius submission results', () => {
     const result = await syncMobiusForWorkLog(log, user, now, { source: 'web', database });
     expect(result).toMatchObject({ status: 'disabled', reason: 'not_configured', posted: 0 });
     expect(database.listMobiusSyncRuns(user.id).items[0]).toMatchObject({ source: 'web', result: { reason: 'not_configured' } });
+    expect(mcp.connect).not.toHaveBeenCalled();
+  });
+
+  it('records plans as excluded without reading or commenting on their explicit issue IDs', async () => {
+    const { database, user, log } = setup();
+    const result = await syncMobiusForWorkLog({ ...log, nextPlan: '- AI-101 检查未来的平台任务' }, user, now, { source: 'mcp', database });
+    expect(result.items).toContainEqual(expect.objectContaining({ status: 'skipped', reason: 'planned_work', entries: [{ section: '明日计划', text: 'AI-101 检查未来的平台任务' }] }));
+    expect(result.unmatched).toBe(0);
+    const calls = mcp.callTool.mock.calls.map(([call]) => call);
+    expect(calls.some((call) => call.arguments?.identifier === 'AI-101')).toBe(false);
+    expect(result.postedComments[0].body).not.toContain('AI-101');
+  });
+
+  it('does not connect to Mobius for a Markdown log containing only Todos', async () => {
+    const { database, user, log } = setup();
+    const result = await syncMobiusForWorkLog({ ...log, completed: [], inProgress: '', blockers: '', nextPlan: '', markdownContent: '## Todos\n- AI-100 检查平台运行情况' }, user, now, { database });
+    expect(result).toMatchObject({ status: 'skipped', reason: 'planned_work', posted: 0, unmatched: 0 });
     expect(mcp.connect).not.toHaveBeenCalled();
   });
 

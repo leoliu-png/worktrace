@@ -1,9 +1,10 @@
 import Database from 'better-sqlite3';
-import { isAdminEmail } from './access';
+import { builtInAdminEmails, isAdminEmail, isBuiltInAdminEmail } from './access';
 import { decryptApiKey, verifyApiKey } from './api-keys';
 import { workLogMarkdownContent } from './markdown-work-log';
 import { resolveReportDate, workTraceReportDate } from './report-date';
 import type { MobiusSyncResult, MobiusSyncRun, MobiusSyncSource } from './mobius-sync-result';
+import { feedbackInputSchema, feedbackReviewSchema, type Feedback, type FeedbackInput, type FeedbackReview, type FeedbackStatus } from './feedback';
 
 type LocalDatabase = Database.Database;
 export type LocalUser = { id: string; email: string; name: string; role: 'ADMIN' | 'MEMBER' };
@@ -31,6 +32,7 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     CREATE TABLE IF NOT EXISTS work_log_attachments (id TEXT PRIMARY KEY, work_log_id TEXT NOT NULL REFERENCES work_logs(id) ON DELETE CASCADE, filename TEXT NOT NULL, storage_key TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS api_keys (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, prefix TEXT NOT NULL, lookup_prefix TEXT, hash TEXT NOT NULL, encrypted_secret TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, last_used_at TEXT);
     CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, type TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS feedback (id TEXT PRIMARY KEY, author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, category TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'OPEN', reply TEXT NOT NULL DEFAULT '', reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
   `);
   const workLogColumns = new Set((sqlite.prepare('PRAGMA table_info(work_logs)').all() as { name: string }[]).map((column) => column.name));
   if (!workLogColumns.has('report_date')) {
@@ -54,6 +56,9 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     CREATE INDEX IF NOT EXISTS idx_work_log_attachments_log ON work_log_attachments(work_log_id, created_at ASC);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_work_logs_idempotency ON work_logs(author_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_api_keys_lookup_prefix ON api_keys(lookup_prefix);
+    CREATE INDEX IF NOT EXISTS idx_feedback_author_created ON feedback(author_id, created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_feedback_status_created ON feedback(status, created_at DESC, id DESC);
     CREATE VIRTUAL TABLE IF NOT EXISTS work_logs_fts USING fts5(title, completed, in_progress, blockers, next_plan, content='work_logs', content_rowid='rowid');
     CREATE TRIGGER IF NOT EXISTS work_logs_fts_insert AFTER INSERT ON work_logs BEGIN
       INSERT INTO work_logs_fts(rowid, title, completed, in_progress, blockers, next_plan) VALUES (new.rowid, new.title, new.completed, new.in_progress, new.blockers, new.next_plan);
@@ -70,6 +75,19 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
   function asWorkLog(row: any): LocalWorkLog {
     const log = { id: row.id, authorId: row.author_id, reportDate: row.report_date ?? workTraceReportDate(new Date(row.created_at)), title: row.title, completed: JSON.parse(row.completed), inProgress: row.in_progress ?? '', blockers: row.blockers ?? '', nextPlan: row.next_plan ?? '', markdownContent: row.markdown_content ?? '', createdAt: row.created_at, updatedAt: row.updated_at ?? row.created_at };
     return { ...log, markdownContent: workLogMarkdownContent(log) };
+  }
+
+  function asFeedback(row: any): Feedback {
+    return { id: row.id, authorId: row.author_id, authorName: row.author_name, authorEmail: row.author_email,
+      category: row.category, title: row.title, description: row.description, status: row.status,
+      reply: row.reply, reviewedBy: row.reviewed_by, createdAt: row.created_at, updatedAt: row.updated_at };
+  }
+
+  function feedbackViewer(viewerId: string, all = false): LocalUser {
+    const viewer = sqlite.prepare('SELECT id, name, email, role FROM users WHERE id = ?').get(viewerId) as LocalUser | undefined;
+    if (!viewer) throw new Error('User was not found');
+    if (all && viewer.role !== 'ADMIN') throw new Error('Administrator access is required');
+    return viewer;
   }
 
   function parseCursor(cursor?: string | null): { createdAt: string; id: string } | undefined {
@@ -91,6 +109,19 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     return event;
   }
 
+  // Apply the built-in administrator policy to accounts already stored before deployment.
+  sqlite.transaction(() => {
+    const findMembers = sqlite.prepare("SELECT id FROM users WHERE lower(trim(email)) = ? AND role <> 'ADMIN'");
+    const promoteMember = sqlite.prepare("UPDATE users SET role = 'ADMIN' WHERE id = ?");
+    for (const email of builtInAdminEmails) {
+      const members = findMembers.all(email) as { id: string }[];
+      for (const member of members) {
+        promoteMember.run(member.id);
+        writeAuditEvent(member.id, 'USER_ROLE_CHANGED', 'USER', member.id);
+      }
+    }
+  })();
+
   function saveDailyWorkLog(authorId: string, input: WorkLogInput, now: Date) {
     const reportDate = resolveReportDate(input.reportDate, now);
     const existing = sqlite.prepare('SELECT * FROM work_logs WHERE author_id = ? AND report_date = ? ORDER BY updated_at DESC, id DESC LIMIT 1').get(authorId, reportDate) as any;
@@ -110,6 +141,51 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
 
   return {
     transaction<T>(callback: () => T): T { return sqlite.transaction(callback)(); },
+    createFeedback(authorId: string, input: FeedbackInput): Feedback {
+      const parsed = feedbackInputSchema.parse(input);
+      return sqlite.transaction(() => {
+        const author = feedbackViewer(authorId);
+        const now = new Date().toISOString();
+        const feedback: Feedback = { ...parsed, id: crypto.randomUUID(), authorId, authorName: author.name, authorEmail: author.email, status: 'OPEN', reply: '', reviewedBy: null, createdAt: now, updatedAt: now };
+        sqlite.prepare('INSERT INTO feedback (id, author_id, category, title, description, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(feedback.id, authorId, feedback.category, feedback.title, feedback.description, feedback.status, now, now);
+        writeAuditEvent(authorId, 'FEEDBACK_CREATED', 'FEEDBACK', feedback.id);
+        return feedback;
+      })();
+    },
+    getFeedback(id: string, viewerId: string): Feedback | undefined {
+      const viewer = feedbackViewer(viewerId);
+      const row = sqlite.prepare('SELECT feedback.*, users.name AS author_name, users.email AS author_email FROM feedback JOIN users ON users.id = feedback.author_id WHERE feedback.id = ?').get(id) as any;
+      return row && (row.author_id === viewerId || viewer.role === 'ADMIN') ? asFeedback(row) : undefined;
+    },
+    listFeedback(viewerId: string, options: { all?: boolean; status?: FeedbackStatus; limit?: number; cursor?: string } = {}) {
+      feedbackViewer(viewerId, options.all);
+      const where: string[] = [];
+      const values: unknown[] = [];
+      if (!options.all) { where.push('feedback.author_id = ?'); values.push(viewerId); }
+      if (options.status) { where.push('feedback.status = ?'); values.push(options.status); }
+      const cursor = parseCursor(options.cursor);
+      if (cursor) { where.push('(feedback.created_at < ? OR (feedback.created_at = ? AND feedback.id < ?))'); values.push(cursor.createdAt, cursor.createdAt, cursor.id); }
+      const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
+      const rows = sqlite.prepare(`SELECT feedback.*, users.name AS author_name, users.email AS author_email FROM feedback JOIN users ON users.id = feedback.author_id ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY feedback.created_at DESC, feedback.id DESC LIMIT ?`)
+        .all(...values, limit + 1);
+      const items = rows.slice(0, limit).map(asFeedback);
+      const last = items.at(-1);
+      return { items, nextCursor: rows.length > limit && last ? Buffer.from(JSON.stringify({ createdAt: last.createdAt, id: last.id })).toString('base64url') : null };
+    },
+    reviewFeedback(id: string, actorId: string, input: FeedbackReview): Feedback {
+      const parsed = feedbackReviewSchema.parse(input);
+      return sqlite.transaction(() => {
+        feedbackViewer(actorId, true);
+        const current = this.getFeedback(id, actorId);
+        if (!current) throw new Error('Feedback was not found');
+        const updatedAt = new Date().toISOString();
+        sqlite.prepare('UPDATE feedback SET status = ?, reply = ?, reviewed_by = ?, updated_at = ? WHERE id = ?')
+          .run(parsed.status, parsed.reply, actorId, updatedAt, id);
+        writeAuditEvent(actorId, 'FEEDBACK_REVIEWED', 'FEEDBACK', id);
+        return { ...current, ...parsed, reviewedBy: actorId, updatedAt };
+      })();
+    },
     startMobiusSyncRun(log: Pick<LocalWorkLog, 'id' | 'title' | 'reportDate'>, source: MobiusSyncSource, now = new Date()): string {
       const id = crypto.randomUUID();
       sqlite.prepare("INSERT INTO mobius_sync_runs (id, work_log_id, log_title, report_date, source, status, created_at) VALUES (?, ?, ?, ?, ?, 'matching', ?)")
@@ -174,6 +250,9 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     setUserRole(userId: string, role: 'ADMIN' | 'MEMBER', actorId = userId): LocalUser {
       const current = sqlite.prepare('SELECT id, email, name, role FROM users WHERE id = ?').get(userId) as LocalUser | undefined;
       if (!current) throw new Error('User was not found');
+      if (role === 'MEMBER' && isBuiltInAdminEmail(current.email)) {
+        throw new Error('Cannot demote a built-in administrator');
+      }
       if (current.role === 'ADMIN' && role === 'MEMBER') {
         const administrators = sqlite.prepare("SELECT COUNT(*) AS total FROM users WHERE role = 'ADMIN'").get() as { total: number };
         if (administrators.total <= 1) throw new Error('Cannot remove the last administrator');
