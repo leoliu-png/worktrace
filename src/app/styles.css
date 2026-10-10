@@ -146,6 +146,10 @@ html,body { background:#f4f7f8; }
 .wt-markdown-meta > label { width:200px; flex:none; }
 .wt-markdown-meta p { margin:0 0 2px; color:#596677; font-size:13px; }
 .wt-markdown-meta code { padding:2px 4px; background:#eef4f3; }
+.wt-draft-status { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin:0 0 16px; color:#61777d; font-size:13px; }
+.wt-draft-status p { margin:0; }
+.wt-draft-discard { padding:6px 10px; border:1px solid #c8dcd6; border-radius:5px; background:#fff; color:#61777d; cursor:pointer; }
+.wt-draft-discard:disabled { opacity:.55; cursor:default; }
 .wt-markdown-editor { border:1px solid #cad8d5; background:#fff; }
 .wt-markdown-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:5px; padding:9px; border-bottom:1px solid #dbe6e3; background:#f6faf9; }
 .wt-markdown-toolbar button { min-height:34px; padding:5px 9px; border:1px solid transparent; border-radius:4px; color:#2e4650; background:transparent; cursor:pointer; font:inherit; font-size:13px; }
@@ -315,6 +319,7 @@ html,body { background:#f4f7f8; }
 .wt-issue-item-heading a { font-size:14px; font-weight:600; color:#0d7581; overflow-wrap:anywhere; }
 .wt-issue-item-heading small { display:block; margin-top:5px; color:#7b8d91; }
 .wt-issue-entry-list { padding-left:20px; margin:12px 0; font-size:13px; line-height:1.9; overflow-wrap:anywhere; }
+.wt-issue-entry-list li { white-space:pre-wrap; }
 .wt-issue-entry-list li>span { margin-right:8px; color:#7b8d91; font-size:12px; }
 .wt-issue-reason { margin:10px 0 0; color:#61777d; font-size:13px; line-height:1.7; }
 .wt-match-decisions { margin-top:12px; }

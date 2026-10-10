@@ -1,4 +1,5 @@
 import { workLogSectionHeading, type WorkLogSection } from './work-log-sections';
+import { markdownListItemContent, markdownWorkBlocks } from './markdown-work-items';
 
 export const maxMarkdownCharacters = 50_000;
 
@@ -52,19 +53,29 @@ export function parseMarkdownWorkLog(value: string) {
   const otherSections = { inProgress: [] as string[], blockers: [] as string[], nextPlan: [] as string[] };
   let currentSection: WorkLogSection | undefined;
   let planDepth: number | undefined;
-  for (const line of lines) {
-    const heading = line.match(/^\s*(#{1,6})\s+(.+)$/);
-    const named = workLogSectionHeading(heading?.[2] ?? line, Boolean(heading));
-    if (heading || named) {
-      const depth = heading?.[1].length ?? 0;
-      if (heading && planDepth !== undefined && planDepth > 0 && depth > planDepth) continue;
-      currentSection = named;
-      planDepth = named === 'nextPlan' ? depth : undefined;
+  for (const block of markdownWorkBlocks(markdownContent)) {
+    const line = block.text;
+    if (block.kind === 'code') {
+      if (currentSection && currentSection !== 'completed') otherSections[currentSection].push(line);
       continue;
     }
+    // Headings inside a list item belong to that work item, not a new log section.
+    if (block.kind === 'line') {
+      const heading = line.match(/^\s*(#{1,6})\s+(.+)$/);
+      const named = workLogSectionHeading(heading?.[2] ?? line, Boolean(heading));
+      if (heading || named) {
+        const depth = heading?.[1].length ?? 0;
+        if (heading && planDepth !== undefined && planDepth > 0 && depth > planDepth) continue;
+        currentSection = named;
+        planDepth = named === 'nextPlan' ? depth : undefined;
+        continue;
+      }
+    }
     if (currentSection === 'completed') {
-      const item = line.match(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.+)$/);
-      if (item) completed.push(plainText(item[1]));
+      if (block.kind === 'item') {
+        const [first, ...details] = markdownListItemContent(line).split('\n');
+        completed.push([plainText(first.replace(/^\[[ xX]\]\s+/, '')), ...details].join('\n').trim());
+      }
     } else if (currentSection) {
       otherSections[currentSection].push(line);
     }

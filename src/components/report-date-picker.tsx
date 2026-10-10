@@ -6,6 +6,8 @@ import { buildReportDateCalendar } from '../lib/report-date';
 type Props = {
   defaultValue: string;
   maxDate: string;
+  value?: string;
+  onChange?: (value: string) => void;
 };
 
 function moveMonth(value: string, offset: number) {
@@ -22,14 +24,19 @@ function displayDate(value: string) {
   return value.replaceAll('-', '/');
 }
 
-export function ReportDatePicker({ defaultValue, maxDate }: Props) {
-  const [selected, setSelected] = useState(defaultValue);
-  const [viewDate, setViewDate] = useState(`${defaultValue.slice(0, 7)}-01`);
+export function ReportDatePicker({ defaultValue, maxDate, value, onChange }: Props) {
+  const [internalValue, setSelected] = useState(defaultValue);
+  const selected = value ?? internalValue;
+  const [viewDate, setViewDate] = useState(`${selected.slice(0, 7)}-01`);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const days = useMemo(() => buildReportDateCalendar(viewDate, maxDate), [viewDate, maxDate]);
   const nextMonth = moveMonth(viewDate, 1);
   const canMoveNext = nextMonth.slice(0, 7) <= maxDate.slice(0, 7);
+
+  useEffect(() => {
+    setViewDate(`${selected.slice(0, 7)}-01`);
+  }, [selected]);
 
   useEffect(() => {
     if (!open) return;
@@ -78,6 +85,7 @@ export function ReportDatePicker({ defaultValue, maxDate }: Props) {
           aria-pressed={day.date === selected}
           onClick={() => {
             setSelected(day.date);
+            onChange?.(day.date);
             setViewDate(`${day.date.slice(0, 7)}-01`);
             setOpen(false);
           }}

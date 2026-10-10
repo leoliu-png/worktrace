@@ -23,21 +23,34 @@ function mobiusQuery(result: MobiusSyncResult) {
   return `&mobius=${result.status}&posted=${result.posted}&unmatched=${result.unmatched}&updated=${result.alreadyUpdated}&failed=${result.failed}`;
 }
 
-export async function createWorkLog(formData: FormData) {
+export async function createWorkLog(formData: FormData): Promise<{ error: string } | { redirectTo: string }> {
+  const draftMode = formData.has('draftId');
+  const failure = (error: string): { error: string } => {
+    if (draftMode) return { error };
+    redirect(`/console/logs/new?error=${error}`);
+  };
   const session = await auth();
   const user = session?.user;
-  if (!user?.id) redirect('/');
+  if (!user?.id) {
+    if (draftMode) return { error: 'session' };
+    redirect('/');
+  }
 
   const markdownMode = formData.has('markdownContent');
   const markdown = String(formData.get('markdownContent') ?? '');
-  if (markdownMode && markdown.length > maxMarkdownCharacters) redirect('/console/logs/new?error=too-long');
+  if (markdownMode && markdown.length > maxMarkdownCharacters) return failure('too-long');
   const input = markdownMode ? parseMarkdownWorkLog(markdown) : logInput(formData);
-  if (!input || !input.title || (!markdownMode && !input.completed.length)) redirect('/console/logs/new?error=required');
+  if (!input || !input.title || (!markdownMode && !input.completed.length)) return failure('required');
   let reportDate: string;
   try { reportDate = resolveReportDate(String(formData.get('reportDate') ?? '')); }
-  catch { redirect('/console/logs/new?error=date'); }
+  catch { return failure('date'); }
 
-  const { pending, stored } = await preparePastedImages(formData, markdown, '/console/logs/new?error=image');
+  let pending: ReturnType<typeof pendingPastedImages>;
+  let stored: Awaited<ReturnType<typeof saveImageAttachments>>;
+  try {
+    pending = pendingPastedImages(formData, markdown);
+    stored = pending.length ? await saveImageAttachments(pending.map((image) => image.file)) : [];
+  } catch { return failure('image'); }
   const database = createDatabase();
   let savedLog: LocalWorkLog | undefined;
   try {
@@ -51,13 +64,16 @@ export async function createWorkLog(formData: FormData) {
     });
   } catch (error) {
     await removeImageAttachments(stored.map((image) => image.storageKey));
+    if (draftMode) return { error: 'save' };
     throw error;
   } finally { database.close(); }
   if (!savedLog) throw new Error('Saved work log was not found.');
   const mobius = await syncMobiusForWorkLog(savedLog, user);
   revalidatePath('/console');
   revalidatePath('/console/issue-matches');
-  redirect(`/console/my-logs?created=1${mobiusQuery(mobius)}`);
+  const redirectTo = `/console/my-logs?created=1${mobiusQuery(mobius)}`;
+  if (draftMode) return { redirectTo };
+  redirect(redirectTo);
 }
 
 function logInput(formData: FormData) {

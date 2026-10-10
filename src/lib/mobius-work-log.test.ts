@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createDatabase } from './db';
-import { issueUpdatedToday, matchingTerms, plannedWorkLogEntries, selectMatchingIssue, workLogEntries, type MobiusIssue } from './mobius-work-log';
+import { issueUpdatedToday, matchingTerms, mobiusCommentBody, plannedWorkLogEntries, selectMatchingIssue, workLogEntries, type MobiusIssue } from './mobius-work-log';
 import { parseMarkdownWorkLog } from './markdown-work-log';
 
 describe('Mobius work-log matching', () => {
@@ -39,6 +39,58 @@ describe('Mobius work-log matching', () => {
   it('extracts the submitted entry instead of the whole log', () => {
     const entries = workLogEntries({ completed: ['- 完成 Binance Youappi VE/JP spend 录入'], inProgress: '', blockers: '', nextPlan: '', markdownContent: '' });
     expect(entries).toEqual([{ section: '完成事项', text: '完成 Binance Youappi VE/JP spend 录入' }]);
+  });
+
+  it('uses the original Markdown hierarchy even when legacy fields flattened the children', () => {
+    const parent = 'AI-2593：长期运行的内部信息智能平台，继续优化';
+    const details = ['修复风险复核反复失败', '清理了 9 条过期任务', '新增首页今日关键结论'];
+    const markdownContent = `## Done\n3. ${parent}\n${details.map((text) => `   - ${text}`).join('\n')}\n4. 完成 WorkTrace 日志编辑优化`;
+    const log = { completed: [parent, ...details, '完成 WorkTrace 日志编辑优化'], inProgress: '', blockers: '', nextPlan: '', markdownContent };
+    const entries = workLogEntries(log);
+    expect(entries).toEqual([
+      { section: '完成事项', text: `${parent}\n${details.map((text) => `- ${text}`).join('\n')}` },
+      { section: '完成事项', text: '完成 WorkTrace 日志编辑优化' },
+    ]);
+    const issue: MobiusIssue = { identifier: 'AI-2593', title: '内部信息智能平台', state: 'In Progress' };
+    expect(selectMatchingIssue(entries[0], [issue])).toBe(issue);
+    const body = mobiusCommentBody({ id: 'log', reportDate: '2026-10-08' }, [entries[0]], 'Leo');
+    expect(body).toContain(`- ${parent}\n  - ${details[0]}\n  - ${details[1]}\n  - ${details[2]}`);
+  });
+
+  it('keeps each MCP completed-array item intact, including details beyond 600 characters', () => {
+    const parent = 'AI-2593 平台继续优化';
+    const details = Array.from({ length: 40 }, (_, index) => `- 第 ${index + 1} 项优化：修复引用匹配与中文错误信息，验证重试流程。`).join('\n');
+    const text = `${parent}\n${details}\n- 最后一项：检查首页展示结果`;
+    const entries = workLogEntries({ completed: [text, '每日 spend 数据验证完成'], inProgress: '', blockers: '', nextPlan: '', markdownContent: '' });
+    expect(entries).toHaveLength(2);
+    expect(entries[0].text).toBe(text);
+    expect(entries[0].text).toContain('最后一项：检查首页展示结果');
+  });
+
+  it('keeps progress details with their parent and ignores code examples inside that parent', () => {
+    const log = parseMarkdownWorkLog([
+      '## 进行中',
+      '- AI-2593 平台持续优化',
+      '  - 调整重试机制',
+      '',
+      '  ```text',
+      '  AI-9999 示例编号，不能参与匹配',
+      '  ```',
+      '  - 修正首页展示',
+      '- WorkTrace 日志编辑优化',
+    ].join('\n'))!;
+    const entries = workLogEntries(log);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({ section: '进行中' });
+    expect(entries[0].text).toContain('调整重试机制');
+    expect(entries[0].text).toContain('修正首页展示');
+    expect(entries[0].text).not.toContain('AI-9999');
+  });
+
+  it('excludes a planned parent and its entire nested list as one planned work item', () => {
+    const log = parseMarkdownWorkLog('## Done\n- [ ] AI-2593 明日检查平台\n  - 检查首页显示\n  - 验证定时任务\n- [x] 完成 WorkTrace 编辑优化')!;
+    expect(workLogEntries(log)).toEqual([{ section: '完成事项', text: '完成 WorkTrace 编辑优化' }]);
+    expect(plannedWorkLogEntries(log)).toEqual([{ section: '明日计划', text: 'AI-2593 明日检查平台\n- 检查首页显示\n- 验证定时任务' }]);
   });
 
   it('excludes structured future plans from matching and keeps actual progress and blockers', () => {

@@ -11,11 +11,13 @@ import { codeBlockField, collapseOnSelectionFacet, editorTheme, imageField, link
 import { markdownFoldRange } from '@/lib/markdown-folding';
 import { imagePasteInsertion, orderedListRenumbering } from '@/lib/markdown-editing';
 import { maxMarkdownCharacters } from '@/lib/markdown-work-log';
+import type { DraftPastedImage } from '@/lib/work-log-draft';
 
 const maxPastedImages = 5;
 const maxImageBytes = 5 * 1024 * 1024;
 const supportedImages = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
-type PastedImage = { file: File; source: string };
+type PastedImage = DraftPastedImage;
+const emptyPastedImages: PastedImage[] = [];
 type LineStyle = 'h1' | 'h2' | 'bullet' | 'number' | 'task' | 'quote';
 
 const lineMarkers: Record<LineStyle, RegExp> = {
@@ -143,7 +145,16 @@ const foldMarkerAlignment = ViewPlugin.fromClass(class {
   }
 });
 
-export function MarkdownEditor({ initialValue = '', readOnly = false, children }: { initialValue?: string; readOnly?: boolean; children?: ReactNode }) {
+type MarkdownEditorProps = {
+  initialValue?: string;
+  readOnly?: boolean;
+  children?: ReactNode;
+  initialPastedImages?: PastedImage[];
+  onChange?: (value: string) => void;
+  onPastedImagesChange?: (images: PastedImage[]) => void;
+};
+
+export function MarkdownEditor({ initialValue = '', readOnly = false, children, initialPastedImages = emptyPastedImages, onChange, onPastedImagesChange }: MarkdownEditorProps) {
   const [value, setValue] = useState(initialValue);
   const [ready, setReady] = useState(false);
   const [imageSources, setImageSources] = useState<string[]>([]);
@@ -152,9 +163,15 @@ export function MarkdownEditor({ initialValue = '', readOnly = false, children }
   const viewRef = useRef<EditorView | null>(null);
   const pastedImages = useRef<PastedImage[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
+  const changeListener = useRef(onChange);
+  const imagesListener = useRef(onPastedImagesChange);
+  changeListener.current = onChange;
+  imagesListener.current = onPastedImagesChange;
 
   useEffect(() => {
     if (!mount.current) return;
+    setValue(initialValue);
+    syncPastedImages(initialPastedImages, false);
     const view = new EditorView({
       state: EditorState.create({
         doc: initialValue,
@@ -202,7 +219,11 @@ export function MarkdownEditor({ initialValue = '', readOnly = false, children }
           linkPlugin(),
           editorTheme,
           EditorView.updateListener.of((update) => {
-            if (update.docChanged) setValue(update.state.doc.toString());
+            if (update.docChanged) {
+              const next = update.state.doc.toString();
+              setValue(next);
+              changeListener.current?.(next);
+            }
           }),
         ],
       }),
@@ -219,16 +240,22 @@ export function MarkdownEditor({ initialValue = '', readOnly = false, children }
       document.removeEventListener('mouseup', stopSelecting);
       viewRef.current = null;
       view.destroy();
-      for (const image of pastedImages.current) URL.revokeObjectURL(image.source);
+      const previousImages = [...pastedImages.current];
+      setTimeout(() => {
+        for (const image of previousImages) {
+          if (!viewRef.current || !pastedImages.current.some((current) => current.source === image.source)) URL.revokeObjectURL(image.source);
+        }
+      }, 0);
     };
-  }, [initialValue, readOnly]);
+  }, [initialValue, readOnly, initialPastedImages]);
 
-  function syncPastedImages(images: PastedImage[]) {
+  function syncPastedImages(images: PastedImage[], notify = true) {
     pastedImages.current = images;
     const transfer = new DataTransfer();
     for (const image of images) transfer.items.add(image.file);
     if (fileInput.current) fileInput.current.files = transfer.files;
     setImageSources(images.map((image) => image.source));
+    if (notify) imagesListener.current?.(images);
   }
 
   function handlePaste(event: ClipboardEvent<HTMLDivElement>) {

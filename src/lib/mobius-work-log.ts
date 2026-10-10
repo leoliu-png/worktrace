@@ -2,6 +2,7 @@ import type { LocalWorkLog } from './db';
 import { workTraceReportDate } from './report-date';
 import type { JevFailureReason, MobiusMatchDecision } from './mobius-match';
 import { isPlannedWorkItem, workLogSectionHeading } from './work-log-sections';
+import { markdownListItemContent, markdownWithoutCode, markdownWorkBlocks } from './markdown-work-items';
 
 export type MobiusIssue = {
   identifier: string;
@@ -35,38 +36,37 @@ const chineseStopWords = new Set([
 ]);
 
 function cleanEntry(value: string) {
-  return value
-    .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+|>\s*)/, '')
-    .replace(/[`*_~]/g, '')
-    .replace(/<[^>]+>/g, '')
-    .trim()
-    .slice(0, 600);
+  const text = markdownListItemContent(value);
+  return markdownWithoutCode(text).split('\n').map((line, index) => {
+    if (index === 0) line = line.replace(/^\s*(?:\[[ xX]\]\s+|>\s*)/, '');
+    const prefix = index === 0 ? '' : line.match(/^(?:\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?|\s+)/)?.[0] ?? '';
+    return prefix + line.slice(prefix.length)
+      .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/[`*_~]/g, '')
+      .replace(/<[^>]+>/g, '')
+      .trimEnd();
+  }).join('\n').trim();
 }
 
 function sectionEntries(value: string, defaultSection: string, plansOnly = false) {
   const entries: WorkLogEntry[] = [];
   let section = defaultSection;
   let planDepth: number | undefined = plansOnly ? 0 : undefined;
-  let fence: string | undefined;
   const labels = { completed: '完成事项', inProgress: '进行中', blockers: '阻塞 / 风险', nextPlan: '明日计划' };
-  for (const line of value.split(/\r?\n/)) {
-    const codeFence = line.match(/^\s*(`{3,}|~{3,})/);
-    if (codeFence) {
-      if (!fence) fence = codeFence[1][0];
-      else if (codeFence[1][0] === fence) fence = undefined;
-      continue;
-    }
-    if (fence) continue;
-    const heading = line.match(/^\s*(#{1,6})\s+(.+)$/);
-    const named = workLogSectionHeading(heading?.[2] ?? line, Boolean(heading));
-    if (heading || named) {
-      const depth = heading?.[1].length ?? 0;
-      if (heading && planDepth !== undefined && planDepth > 0 && depth > planDepth) continue;
-      planDepth = plansOnly || named === 'nextPlan' ? depth : undefined;
-      section = named ? labels[named] : defaultSection;
-      continue;
+  for (const block of markdownWorkBlocks(value)) {
+    if (block.kind === 'code') continue;
+    const line = block.text;
+    if (block.kind === 'line') {
+      const heading = line.match(/^\s*(#{1,6})\s+(.+)$/);
+      const named = workLogSectionHeading(heading?.[2] ?? line, Boolean(heading));
+      if (heading || named) {
+        const depth = heading?.[1].length ?? 0;
+        if (heading && planDepth !== undefined && planDepth > 0 && depth > planDepth) continue;
+        planDepth = plansOnly || named === 'nextPlan' ? depth : undefined;
+        section = named ? labels[named] : defaultSection;
+        continue;
+      }
     }
     const planned = planDepth !== undefined || isPlannedWorkItem(line);
     const text = cleanEntry(line);
@@ -79,16 +79,19 @@ type EntryLog = Pick<LocalWorkLog, 'completed' | 'inProgress' | 'blockers' | 'ne
 
 function submittedEntries(log: EntryLog) {
   const structured = [
-    ...sectionEntries(log.completed.join('\n'), '完成事项'),
+    ...log.completed.flatMap((item): WorkLogEntry[] => {
+      const text = cleanEntry(item);
+      return text.length >= 5 ? [{ section: isPlannedWorkItem(item) ? '明日计划' : '完成事项', text }] : [];
+    }),
     ...sectionEntries(log.inProgress, '进行中'),
     ...sectionEntries(log.blockers, '阻塞 / 风险'),
     ...sectionEntries(log.nextPlan, '明日计划', true),
   ];
-  // Markdown is also examined for Todo blocks the legacy parser did not map.
+  // The original Markdown retains hierarchy that older structured fields lost.
   const markdown = sectionEntries(log.markdownContent, '日志内容');
-  const actual = structured.filter((entry) => entry.section !== '明日计划');
+  const actual = (log.markdownContent.trim() ? markdown : structured).filter((entry) => entry.section !== '明日计划');
   const planned = [...structured, ...markdown].filter((entry) => entry.section === '明日计划');
-  const entries = [...(actual.length ? actual : markdown.filter((entry) => entry.section !== '明日计划')), ...planned];
+  const entries = [...actual, ...planned];
   return entries.filter((entry, index) => entries.findIndex((other) => other.section === entry.section && other.text === entry.text) === index);
 }
 
@@ -220,7 +223,7 @@ export function issueUpdatedToday(issue: MobiusIssue, now = new Date()) {
 export function mobiusCommentBody(log: Pick<LocalWorkLog, 'id' | 'reportDate'>, entries: WorkLogEntry[], authorName: string, appUrl?: string) {
   const grouped = new Map<string, string[]>();
   for (const entry of entries) grouped.set(entry.section, [...(grouped.get(entry.section) ?? []), entry.text]);
-  const sections = [...grouped].map(([section, lines]) => `**${section}**\n${lines.map((line) => `- ${line}`).join('\n')}`);
+  const sections = [...grouped].map(([section, lines]) => `**${section}**\n${lines.map((line) => `- ${line.replace(/\n/g, '\n  ')}`).join('\n')}`);
   const base = appUrl?.replace(/\/$/, '');
   const link = base ? `\n\n[查看 WorkTrace 工作日志](${base}/console/logs/${encodeURIComponent(log.id)})` : '';
   return `来自 ${authorName} 的 WorkTrace 工作日志（${log.reportDate}）：\n\n${sections.join('\n\n')}${link}\n\n<!-- worktrace-log:${log.id} -->`;

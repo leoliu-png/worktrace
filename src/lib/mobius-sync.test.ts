@@ -93,6 +93,29 @@ describe('persisted Mobius submission results', () => {
     expect(mcp.connect).not.toHaveBeenCalled();
   });
 
+  it('matches a parent task once and posts all nested details in one comment', async () => {
+    const platform: MobiusIssue = { identifier: 'AI-2593', title: '长期运行的内部信息智能平台', state: 'In Progress', updatedAt: '2026-09-28T02:00:00.000Z' };
+    issues.set(platform.identifier, platform);
+    participating.add(platform.identifier);
+    const { database, user } = setup();
+    const parent = 'AI-2593：长期运行的内部信息智能平台，继续优化';
+    const details = Array.from({ length: 35 }, (_, index) => `平台优化第 ${index + 1} 项：验证风险复核与首页结论`);
+    const log = database.createWorkLog(user.id, {
+      reportDate: '2026-09-30', title: '平台优化', completed: [parent, ...details],
+      markdownContent: `## Done\n3. ${parent}\n${details.map((text) => `   - ${text}`).join('\n')}`,
+    });
+    const result = await syncMobiusForWorkLog(log, user, now, { source: 'web', database });
+    expect(result).toMatchObject({ status: 'posted', posted: 1, unmatched: 0, failed: 0 });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].entries).toHaveLength(1);
+    const comments = mcp.callTool.mock.calls.map(([call]) => call).filter((call) => call.name === 'add_comment');
+    expect(comments).toHaveLength(1);
+    expect(comments[0].arguments.identifier).toBe('AI-2593');
+    expect(comments[0].arguments.body).toContain(`- ${parent}\n  - ${details[0]}`);
+    expect(comments[0].arguments.body).toContain(details[34]);
+    expect(database.listMobiusSyncRuns(user.id).items[0].result?.items).toHaveLength(1);
+  });
+
   it('records plans as excluded without reading or commenting on their explicit issue IDs', async () => {
     const { database, user, log } = setup();
     const result = await syncMobiusForWorkLog({ ...log, nextPlan: '- AI-101 检查未来的平台任务' }, user, now, { source: 'mcp', database });
