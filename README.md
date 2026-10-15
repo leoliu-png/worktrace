@@ -132,7 +132,7 @@ MOBIUS_PAT=你的_Mobius_令牌
 MOBIUS_SYNC_AUTHOR_EMAILS=需要启用同步的成员邮箱
 ```
 
-提交或修改**当天**的工作日志时，网页、REST API 和 WorkTrace MCP 只在日志作者的 Mobius **My issues → Participating** 列表中匹配 Issue。这个范围由 Mobius 的实际订阅记录决定；只有 Assignee / Collaborator，或者曾创建、评论过 Issue，都不能代替当前订阅关系。Done / Completed 状态不评论，也不会把内容改投次优候选。只有日志条目中明确写出范围内的 Issue 编号，或候选有唯一的高置信匹配，且该 Issue 按上海时间今天尚无更新时，系统才会评论；同一 Issue 当天最多自动评论一次。匹配不明确的条目会跳过，可在日志中写入 `AI-1234` 形式的 Issue 编号。
+提交或修改**当天**的工作日志时，网页、REST API 和 WorkTrace MCP 只在日志作者的 Mobius **My issues → Participating** 列表中匹配 Issue。这个范围由 Mobius 的实际订阅记录决定；只有 Assignee / Collaborator，或者曾创建、评论过 Issue，都不能代替当前订阅关系。自动匹配候选只包含 Todo / To Do、In Progress 和 In Review；Canceled、Done / Completed、Duplicate、Backlog 及未知状态不参与匹配或自动评论。只有日志条目中明确写出范围内的 Issue 编号，或候选有唯一的高置信匹配，且该 Issue 按上海时间今天尚无评论时（修改标题、状态等字段不影响评论资格），系统才会评论；同一 Issue 当天最多自动评论一次。匹配不明确的条目会跳过，可在日志中写入 `AI-1234` 形式的 Issue 编号。
 
 当前 Mobius MCP 的 `list_issues` 没有订阅筛选，因此候选集合使用同一个 `MOBIUS_PAT` 读取 Mobius 页面的 `/api/issues?subscriberId=当前令牌用户ID` 接口，Issue 详情、状态检查和发表评论继续通过 Mobius MCP。系统会确认订阅筛选有效；无法读取或验证这个范围时停止自动评论，不扩大到其他 Issue。发表评论前重新读取 Participating，退订的 Issue 会被排除。
 
@@ -148,6 +148,7 @@ MOBIUS_SYNC_AUTHOR_EMAILS=需要启用同步的成员邮箱
 
 ```dotenv
 MOBIUS_MATCHER=jev
+JEV_PROVIDER=openrouter
 OPENROUTER_API_KEY=你的_OpenRouter_密钥
 JEV_MODEL=typesafe/jev-1.13
 JEV_MIN_PROBABILITY=0.75
@@ -155,11 +156,13 @@ JEV_MIN_CONFIDENCE=0.70
 JEV_MIN_MARGIN=0.20
 ```
 
+使用 TypeSafe 官方 Jev 密钥时，设置 `JEV_PROVIDER=typesafe`、`TYPESAFE_API_KEY=你的_TypeSafe_密钥` 和 `JEV_MODEL=jev-1.13.0`。此模式直接调用 `https://api.typesafe.ai/v1/systemone`，日志条目和候选摘录发送到 TypeSafe，并计入 TypeSafe 账号用量；不需要 OpenRouter 密钥。两种供应商的密钥独立使用，不会互相回退。TypeSafe 响应不要求请求 ID，结果仍保存实际模型和选项概率。
+
 WorkTrace 只匹配已开展的工作；Todo、待办、明日计划、带 `Todo:` / `待办：` 前缀的条目和未勾选的任务框不参与匹配，并在结果中记录跳过原因。网页 Markdown 和 MCP / API 结构化字段使用相同规则。系统从 Participating Issue 的真实标题、人工描述和人工评论摘录组装候选说明，排除 AI 背景补全及 WorkTrace 自动评论。同一项目的后续排查、维护、优化和新增功能可以对应原项目 Issue；项目名可以由人工评论或项目链接建立，单独使用相同模型或工具不能建立匹配。每个实际工作条目对应一个 `choice` 问题，选项为候选 Issue 编号和 `NONE`（没有明确匹配）。同一次请求可以判断多个条目；不读取过去七天的工作日志，也不让 Jev 生成说明或评论。请求通过 [OpenRouter Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request) 调用，相关日志条目和候选摘录会发送到 OpenRouter / TypeSafe，并计入该 OpenRouter 账号的用量。
 
-Jev 返回选中编号、各选项概率和 `confidence`。选择概率与 confidence 分别保存；领先幅度是选中选项与第二名的概率之差。这三项都达到配置阈值后才采用匹配。阈值是初始策略，不代表已验证的准确率，尤其 [Jev 官方说明中文等 CJK 内容目前准确率较低](https://docs.typesafe.ai/concepts/state)。最佳候选是 Done / Completed 时直接跳过，不重新选择活跃 Issue。Participating 范围、令牌身份、当日更新和去重检查仍由 WorkTrace 在评论前执行。
+Jev 返回选中编号、各选项概率和 `confidence`。选择概率与 confidence 分别保存；领先幅度是选中选项与第二名的概率之差。这三项都达到配置阈值后才采用匹配。阈值是初始策略，不代表已验证的准确率，尤其 [Jev 官方说明中文等 CJK 内容目前准确率较低](https://docs.typesafe.ai/concepts/state)。候选在调用 Jev 前按 Todo / To Do、In Progress、In Review 状态过滤；获取详情后和评论前再次检查，状态变为 Canceled 等不允许状态时直接跳过。Participating 范围、令牌身份、当日评论和去重检查仍由 WorkTrace 在评论前执行。
 
-「Issue 匹配结果」会记录每个条目的匹配方式、模型、前三个选项的概率及未评论原因。Jev 失败、缺少密钥、配置错误或返回非法候选时不降级到关键词自动评论。每次请求有 15 秒超时，Jev 请求批次最多并行两个，并共用 45 秒截止时间；超过上下文预算时缩短摘录和拆分条目批次，始终保留完整候选集合，无法容纳时停止该次语义匹配。当前最多处理 254 个候选 Issue，另保留 `NONE` 选项。
+「Issue 匹配结果」会记录每个条目的匹配方式、模型、前三个选项的概率及未评论原因。失败请求另保存供应商、HTTP 状态（如有）、耗时，以及 HTTP 错误、超时、网络异常或非法响应的分类；展开匹配详情可查看，不保存供应商响应正文或异常消息。历史记录没有这些字段时仍正常显示。Jev 失败、缺少密钥、配置错误或返回非法候选时不降级到关键词自动评论。每次请求有 15 秒超时，Jev 请求批次最多并行两个，并共用 45 秒截止时间；超过上下文预算时缩短摘录和拆分条目批次，始终保留完整的允许状态候选集合，无法容纳时停止该次语义匹配。描述和评论摘录按 Unicode 码点分段及截断，避免切断 emoji 等字符而被供应商判为非法 Unicode。当前最多处理 254 个允许状态的候选 Issue，另保留 `NONE` 选项。
 
 日志中明确写出的唯一 Issue 编号仍直接匹配，无需 Jev，且经过相同范围和状态检查。未设置 `MOBIUS_MATCHER` 时继续使用原有关键词规则；如需切回，可设置 `MOBIUS_MATCHER=rules`。修改环境变量后重新启动服务，新提交会使用新设置，历史结果不会自动重算。
 

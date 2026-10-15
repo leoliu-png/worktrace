@@ -137,7 +137,7 @@ describe('persisted Mobius submission results', () => {
     issues.set(issue.identifier, { ...issue, state: 'Done' });
     issues.set('AI-101', { ...issue, identifier: 'AI-101', title: 'WorkTrace Markdown' });
     participating.add('AI-101');
-    const { database, user, log } = setup('完成 WorkTrace Markdown 编辑优化');
+    const { database, user, log } = setup('完成 AI-100 的 WorkTrace Markdown 编辑优化');
     const result = await syncMobiusForWorkLog(log, user, now, { database });
     expect(result.items).toContainEqual(expect.objectContaining({ identifier: 'AI-100', status: 'skipped', reason: 'done' }));
     expect(mcp.callTool.mock.calls.some(([call]) => call.name === 'add_comment')).toBe(false);
@@ -166,11 +166,51 @@ describe('persisted Mobius submission results', () => {
     expect(mcp.callTool.mock.calls.some(([call]) => call.name === 'add_comment')).toBe(false);
   });
 
-  it('distinguishes today’s update from a failed connection in persisted results', async () => {
+  it('does not post to an explicitly named canceled issue', async () => {
+    issues.set(issue.identifier, { ...issue, state: 'Canceled' });
+    const { database, user, log } = setup();
+    const result = await syncMobiusForWorkLog(log, user, now, { database });
+    expect(result).toMatchObject({ posted: 0, items: [expect.objectContaining({ status: 'skipped', reason: 'ineligible_state', issueState: 'Canceled' })] });
+    expect(mcp.callTool.mock.calls.some(([call]) => call.name === 'add_comment')).toBe(false);
+  });
+
+  it.each(['Canceled', 'Backlog', 'Duplicate'])('rechecks %s immediately before posting and releases the comment claim', async (state) => {
+    const original = mcp.callTool.getMockImplementation()!;
+    let reads = 0;
+    mcp.callTool.mockImplementation(async (call) => call.name === 'get_issue' && ++reads >= 3 ? response({ ...issue, state }) : original(call));
+    const { database, user, log } = setup();
+    const result = await syncMobiusForWorkLog(log, user, now, { database });
+    expect(result).toMatchObject({ posted: 0, unmatched: 1, items: [expect.objectContaining({ status: 'skipped', reason: 'ineligible_state', issueState: state })] });
+    expect(mcp.callTool.mock.calls.some(([call]) => call.name === 'add_comment')).toBe(false);
+    expect(database.claimMobiusComment(issue.identifier, log.reportDate, log.id, now)).toBeTruthy();
+  });
+
+  it('posts after an issue field update today and prevents a duplicate submission', async () => {
+    issues.set(issue.identifier, { ...issue, updatedAt: now.toISOString(), activity: [{ at: now.toISOString() }], comments: [{ at: '2026-09-29T15:59:59.999Z', body: 'Yesterday’s comment' }] });
+    const { database, user, log } = setup();
+    const posted = await syncMobiusForWorkLog(log, user, now, { database });
+    expect(posted).toMatchObject({ posted: 1, alreadyUpdated: 0 });
+    const duplicate = await syncMobiusForWorkLog(log, user, now, { database });
+    expect(duplicate).toMatchObject({ posted: 0, alreadyUpdated: 1, items: [expect.objectContaining({ reason: 'duplicate' })] });
+    expect(mcp.callTool.mock.calls.filter(([call]) => call.name === 'add_comment')).toHaveLength(1);
+  });
+
+  it('rechecks new comments before posting and releases the claim', async () => {
+    const original = mcp.callTool.getMockImplementation()!;
+    let reads = 0;
+    mcp.callTool.mockImplementation(async (call) => call.name === 'get_issue' && ++reads >= 3 ? response({ ...issue, comments: [{ at: now.toISOString() }] }) : original(call));
+    const { database, user, log } = setup();
+    const result = await syncMobiusForWorkLog(log, user, now, { database });
+    expect(result).toMatchObject({ posted: 0, alreadyUpdated: 1, items: [expect.objectContaining({ reason: 'commented_today' })] });
+    expect(mcp.callTool.mock.calls.some(([call]) => call.name === 'add_comment')).toBe(false);
+    expect(database.claimMobiusComment(issue.identifier, log.reportDate, log.id, now)).toBeTruthy();
+  });
+
+  it('distinguishes today’s comment from a failed connection in persisted results', async () => {
     issues.set(issue.identifier, { ...issue, comments: [{ at: now.toISOString() }] });
     const { database, user, log } = setup();
     const updated = await syncMobiusForWorkLog(log, user, now, { source: 'api', database });
-    expect(updated).toMatchObject({ posted: 0, alreadyUpdated: 1, items: [expect.objectContaining({ reason: 'updated_today' })] });
+    expect(updated).toMatchObject({ posted: 0, alreadyUpdated: 1, items: [expect.objectContaining({ reason: 'commented_today' })] });
     mcp.connect.mockRejectedValueOnce(new Error('Connection unavailable'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const failed = await syncMobiusForWorkLog(log, user, now, { database });

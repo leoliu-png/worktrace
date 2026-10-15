@@ -1,4 +1,4 @@
-import { isPlannedWorkEntry, matchingTerms, matchWorkLogEntry, type MobiusIssue, type MobiusIssueMatch, type WorkLogEntry } from './mobius-work-log';
+import { isPlannedWorkEntry, issueIsMatchable, matchingTerms, matchWorkLogEntry, type MobiusIssue, type MobiusIssueMatch, type WorkLogEntry } from './mobius-work-log';
 import type { MobiusParticipatingScope } from './mobius-participating-scope';
 import { JevMatchingError, jevMaxCandidateIssues, matchEntriesWithJev } from './jev-issue-matcher';
 
@@ -55,16 +55,19 @@ export function createMobiusIssueMatcher(call: ToolCall, scope: Pick<MobiusParti
     if (!semantic.length) return;
     try {
       if (mode !== 'jev') throw new JevMatchingError('jev_invalid_configuration');
-      if (!process.env.OPENROUTER_API_KEY?.trim()) throw new JevMatchingError('jev_not_configured');
+      const provider = process.env.JEV_PROVIDER?.trim() || 'openrouter';
+      if (provider !== 'openrouter' && provider !== 'typesafe') throw new JevMatchingError('jev_invalid_configuration');
+      if (!process.env[provider === 'typesafe' ? 'TYPESAFE_API_KEY' : 'OPENROUTER_API_KEY']?.trim()) throw new JevMatchingError('jev_not_configured');
       candidates ??= scope.list().then((summaries) => {
-        if (summaries.length > jevMaxCandidateIssues) throw new JevMatchingError('jev_context_limit');
-        return hydrate(summaries);
+        const eligible = summaries.filter(issueIsMatchable);
+        if (eligible.length > jevMaxCandidateIssues) throw new JevMatchingError('jev_context_limit');
+        return hydrate(eligible).then((details) => details.filter(issueIsMatchable));
       });
       const matches = await matchEntriesWithJev(semantic, await candidates);
       semantic.forEach((entry, index) => prepared.set(JSON.stringify(entry), { match: matches[index] }));
     } catch (error) {
       semantic.forEach((entry) => prepared.set(JSON.stringify(entry), error instanceof JevMatchingError
-        ? { match: { reason: error.reason, decision: { entry, method: 'jev' } } } : { error }));
+        ? { match: { reason: error.reason, decision: { entry, method: 'jev', failure: error.details } } } : { error }));
     }
   }
 
@@ -87,9 +90,7 @@ export function createMobiusIssueMatcher(call: ToolCall, scope: Pick<MobiusParti
       const issue = await getIssue(summary.identifier);
       return { ...matchWorkLogEntry(entry, issue ? [{ ...summary, ...issue, stateType: issue.stateType ?? summary.stateType }] : []), decision };
     }
-    // Keep Done candidates to reject a completed best match without redirecting
-    // its progress report to a weaker active issue. No workspace-wide search.
-    candidates ??= hydrate(participating);
+    candidates ??= hydrate(participating.filter(issueIsMatchable)).then((details) => details.filter(issueIsMatchable));
     return { ...matchWorkLogEntry(entry, await candidates), decision: { entry, method: 'rules' } };
   }
   return Object.assign(findIssue, { prepare });

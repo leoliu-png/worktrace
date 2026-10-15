@@ -2,6 +2,13 @@ import type { WorkLogEntry } from './mobius-work-log';
 
 export type JevFailureReason = 'jev_not_configured' | 'jev_invalid_configuration' | 'jev_unavailable' | 'jev_invalid_response' | 'jev_context_limit';
 
+export type JevFailureDetails = {
+  provider: 'openrouter' | 'typesafe';
+  kind: 'http' | 'timeout' | 'network' | 'invalid_response';
+  httpStatus?: number;
+  elapsedMs: number;
+};
+
 export type MobiusMatchDecision = {
   entry: WorkLogEntry;
   method: 'jev' | 'rules' | 'identifier';
@@ -14,4 +21,5 @@ export type MobiusMatchDecision = {
   candidateCount?: number;
   thresholds?: { probability: number; confidence: number; margin: number };
   candidates?: Array<{ identifier: string; title?: string; probability: number }>;
+  failure?: JevFailureDetails;
 };

@@ -116,6 +116,12 @@ export function issueIsDone(issue: MobiusIssue) {
   return [issue.state, issue.stateType].some((value) => /^(done|completed)$/i.test(value?.trim() ?? ''));
 }
 
+export function issueIsMatchable(issue: MobiusIssue) {
+  if (issueIsDone(issue) || /^(backlog|canceled|cancelled|duplicate)$/i.test(issue.stateType?.trim() ?? '')) return false;
+  const state = issue.state?.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  return state === 'todo' || state === 'inprogress' || state === 'inreview';
+}
+
 export function matchingTerms(value: string) {
   const text = normalized(value).replace(/https?:\/\/\S+/g, '');
   const english = text.match(/[a-z][a-z0-9]{3,}(?:\.\d+)*/g) ?? [];
@@ -177,13 +183,12 @@ export function issueMatchScore(entry: WorkLogEntry, issue: MobiusIssue) {
   // title. Other named projects/people in the title reduce this evidence.
   const contextScore = contextualAnchor && titleTopic ? 0.88 / (1 + conflictingTitleEntities * 0.5) : 0;
   const score = Math.min(1, Math.max(titleScore, writtenCoverage * 0.8, commentCoverage * 0.8, generatedCoverage * 0.35, contextScore));
-  const closed = /^(canceled|cancelled|duplicate)$/i.test(issue.state ?? '');
-  return closed ? score * 0.85 : score;
+  return score;
 }
 
 export type MobiusIssueMatch = {
   issue?: MobiusIssue;
-  reason?: 'multiple_ids' | 'no_match' | 'ambiguous' | 'done' | 'stopped' | 'not_related' | 'low_confidence' | 'planned_work' | JevFailureReason;
+  reason?: 'multiple_ids' | 'no_match' | 'ambiguous' | 'done' | 'ineligible_state' | 'stopped' | 'not_related' | 'low_confidence' | 'planned_work' | JevFailureReason;
   decision?: MobiusMatchDecision;
 };
 
@@ -194,13 +199,13 @@ export function matchWorkLogEntry(entry: WorkLogEntry, issues: MobiusIssue[]): M
     const issue = issues.find((candidate) => candidate.identifier.toUpperCase() === explicit[0]);
     if (!issue) return { reason: 'no_match' };
     if (issueIsDone(issue)) return { issue, reason: 'done' };
+    if (!issueIsMatchable(issue)) return { issue, reason: 'ineligible_state' };
     if (issue.agentStopRequested) return { issue, reason: 'stopped' };
     return { issue };
   }
   if (explicit.length > 1) return { reason: 'multiple_ids' };
-  const ranked = issues.map((issue) => ({ issue, score: issueMatchScore(entry, issue) })).sort((a, b) => b.score - a.score);
+  const ranked = issues.filter(issueIsMatchable).map((issue) => ({ issue, score: issueMatchScore(entry, issue) })).sort((a, b) => b.score - a.score);
   if (!ranked.length || ranked[0].score < 0.72) return { reason: 'no_match' };
-  if (issueIsDone(ranked[0].issue)) return { issue: ranked[0].issue, reason: 'done' };
   if (ranked[0].score - (ranked[1]?.score ?? 0) < 0.2) return { reason: 'ambiguous' };
   return { issue: ranked[0].issue };
 }
@@ -210,13 +215,14 @@ export function selectMatchingIssue(entry: WorkLogEntry, issues: MobiusIssue[]) 
   return match.reason ? undefined : match.issue;
 }
 
-export function issueUpdatedToday(issue: MobiusIssue, now = new Date()) {
+export function issueHasCommentToday(issue: MobiusIssue, now = new Date()) {
   const today = workTraceReportDate(now);
-  const timestamps = [issue.updatedAt, ...(issue.comments ?? []).map((comment) => comment.at), ...(issue.activity ?? []).map((event) => event.at)];
+  // Editing issue fields or changing status is not a comment update.
+  const timestamps = (issue.comments ?? []).map((comment) => comment.at);
   return timestamps.some((value) => {
     if (!value) return false;
     const date = new Date(value);
-    return !Number.isNaN(date.getTime()) && workTraceReportDate(date) >= today;
+    return !Number.isNaN(date.getTime()) && workTraceReportDate(date) === today;
   });
 }
 

@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { createDatabase, type LocalWorkLog } from './db';
-import { issueIsDone, issueUpdatedToday, mobiusCommentBody, plannedWorkLogEntries, workLogEntries, type MobiusIssue, type WorkLogEntry } from './mobius-work-log';
+import { issueIsDone, issueIsMatchable, issueHasCommentToday, mobiusCommentBody, plannedWorkLogEntries, workLogEntries, type MobiusIssue, type WorkLogEntry } from './mobius-work-log';
 import { createMobiusIssueMatcher } from './mobius-issue-matcher';
 import { createMobiusParticipatingScope, MobiusParticipatingScopeError } from './mobius-participating-scope';
 import { workTraceReportDate } from './report-date';
@@ -129,7 +129,7 @@ export async function syncMobiusForWorkLog(log: LocalWorkLog, author: { email?: 
         }
         if (match.reason || !issue) {
           result.unmatched++;
-          result.items.push({ status: match.reason === 'done' || match.reason === 'stopped' ? 'skipped' : 'unmatched', entries: [entry], reason: match.reason ?? 'no_match', matching, ...issueFields(issue) });
+          result.items.push({ status: match.reason === 'done' || match.reason === 'ineligible_state' || match.reason === 'stopped' ? 'skipped' : 'unmatched', entries: [entry], reason: match.reason ?? 'no_match', matching, ...issueFields(issue) });
           continue;
         }
         const previous = grouped.get(issue.identifier);
@@ -150,9 +150,9 @@ export async function syncMobiusForWorkLog(log: LocalWorkLog, author: { email?: 
         for (let check = 0; check < 2; check++) {
           const issue = await getIssue(client, identifier);
           Object.assign(item, issueFields(issue));
-          if (!issue || issueIsDone(issue) || issue.agentStopRequested) {
+          if (!issue || !issueIsMatchable(issue) || issue.agentStopRequested) {
             result.unmatched += group.entries.length;
-            item.reason = !issue ? 'no_match' : issueIsDone(issue) ? 'done' : 'stopped';
+            item.reason = !issue ? 'no_match' : issueIsDone(issue) ? 'done' : !issueIsMatchable(issue) ? 'ineligible_state' : 'stopped';
             break;
           }
           if (!await participating.contains(identifier)) {
@@ -160,7 +160,7 @@ export async function syncMobiusForWorkLog(log: LocalWorkLog, author: { email?: 
             item.reason = 'not_related';
             break;
           }
-          if (issueUpdatedToday(issue, now)) { result.alreadyUpdated++; item.reason = 'updated_today'; break; }
+          if (issueHasCommentToday(issue, now)) { result.alreadyUpdated++; item.reason = 'commented_today'; break; }
           if (check === 0) {
             claimId = database.claimMobiusComment(identifier, today, log.id, now);
             if (!claimId) { result.alreadyUpdated++; item.reason = 'duplicate'; break; }

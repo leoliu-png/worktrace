@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createDatabase } from './db';
-import { issueUpdatedToday, matchingTerms, mobiusCommentBody, plannedWorkLogEntries, selectMatchingIssue, workLogEntries, type MobiusIssue } from './mobius-work-log';
+import { issueIsMatchable, issueHasCommentToday, matchWorkLogEntry, matchingTerms, mobiusCommentBody, plannedWorkLogEntries, selectMatchingIssue, workLogEntries, type MobiusIssue } from './mobius-work-log';
 import { parseMarkdownWorkLog } from './markdown-work-log';
 
 describe('Mobius work-log matching', () => {
   it('uses an explicit issue identifier and respects the stop flag', () => {
-    const issue: MobiusIssue = { identifier: 'AI-1234', title: 'Unrelated title' };
+    const issue: MobiusIssue = { identifier: 'AI-1234', title: 'Unrelated title', state: 'Todo' };
     const entry = { section: '完成事项', text: '完成了 AI-1234 的日志编辑优化' };
     expect(selectMatchingIssue(entry, [issue])).toEqual(issue);
     expect(selectMatchingIssue(entry, [{ ...issue, agentStopRequested: true }])).toBeUndefined();
@@ -13,8 +13,8 @@ describe('Mobius work-log matching', () => {
 
   it('selects a unique strong title match and skips ambiguous matches', () => {
     const entry = { section: '完成事项', text: 'Binance Youappi VE/JP spend 手动录入' };
-    const matching: MobiusIssue = { identifier: 'AS-1', title: 'Binance Youappi VE/JP spend 录入' };
-    const unrelated: MobiusIssue = { identifier: 'AS-2', title: 'Binance MX budget 分析' };
+    const matching: MobiusIssue = { identifier: 'AS-1', title: 'Binance Youappi VE/JP spend 录入', state: 'In Progress' };
+    const unrelated: MobiusIssue = { identifier: 'AS-2', title: 'Binance MX budget 分析', state: 'Todo' };
     expect(selectMatchingIssue(entry, [unrelated, matching])).toEqual(matching);
     expect(selectMatchingIssue(entry, [matching, { ...matching, identifier: 'AS-3' }])).toBeUndefined();
   });
@@ -22,18 +22,39 @@ describe('Mobius work-log matching', () => {
   it('does not trust only a generated background note as evidence of a match', () => {
     const entry = { section: '完成事项', text: 'Capital One Shopping Samsung TV 自动化录入' };
     const issue: MobiusIssue = {
-      identifier: 'AI-1', title: '每日 spend 录入',
+      identifier: 'AI-1', title: '每日 spend 录入', state: 'In Progress',
       description: '<!-- ai-context:start -->Capital One Shopping Samsung TV 自动化录入',
     };
     expect(selectMatchingIssue(entry, [issue])).toBeUndefined();
     expect(matchingTerms(entry.text)).toContain('samsung');
   });
 
-  it('counts updates using the Shanghai calendar day, including comments', () => {
+  it('allows only named matching states and never lets a generic started type admit another state', () => {
+    for (const state of ['Todo', 'To Do', ' to do ', 'In Progress', 'in progress', 'In Review']) {
+      expect(issueIsMatchable({ identifier: 'AI-1', title: 'Example', state })).toBe(true);
+    }
+    for (const state of ['Canceled', 'Cancelled', 'Done', 'Completed', 'Duplicate', 'Backlog', 'Blocked', 'In Preview', null, undefined]) {
+      expect(issueIsMatchable({ identifier: 'AI-1', title: 'Example', state, stateType: 'started' })).toBe(false);
+    }
+    expect(issueIsMatchable({ identifier: 'AI-1', title: 'Example', state: 'In Progress', stateType: 'canceled' })).toBe(false);
+  });
+
+  it('rejects an explicitly named canceled issue and excludes it from keyword ranking', () => {
+    const canceled: MobiusIssue = { identifier: 'AI-100', title: 'WorkTrace Markdown 编辑', state: 'Canceled' };
+    expect(matchWorkLogEntry({ section: '完成事项', text: '完成 AI-100 的 WorkTrace Markdown 编辑' }, [canceled])).toMatchObject({ reason: 'ineligible_state', issue: canceled });
+    const active = { ...canceled, identifier: 'AI-101', state: 'In Progress' };
+    expect(selectMatchingIssue({ section: '完成事项', text: '完成 WorkTrace Markdown 编辑' }, [canceled, active])).toBe(active);
+  });
+
+  it('checks only comments on the Shanghai calendar day', () => {
     const now = new Date('2026-09-30T02:00:00.000Z');
-    expect(issueUpdatedToday({ identifier: 'AI-1', title: 'Example', updatedAt: '2026-09-29T16:05:00.000Z' }, now)).toBe(true);
-    expect(issueUpdatedToday({ identifier: 'AI-1', title: 'Example', updatedAt: '2026-09-29T15:55:00.000Z' }, now)).toBe(false);
-    expect(issueUpdatedToday({ identifier: 'AI-1', title: 'Example', updatedAt: '2026-09-29T15:00:00.000Z', comments: [{ at: '2026-09-30T01:00:00.000Z' }] }, now)).toBe(true);
+    expect(issueHasCommentToday({ identifier: 'AI-1', title: 'Example', updatedAt: '2026-09-29T16:05:00.000Z', activity: [{ at: now.toISOString() }] }, now)).toBe(false);
+    expect(issueHasCommentToday({ identifier: 'AI-1', title: 'Example', updatedAt: '2026-09-29T15:55:00.000Z' }, now)).toBe(false);
+    expect(issueHasCommentToday({ identifier: 'AI-1', title: 'Example', updatedAt: '2026-09-29T15:00:00.000Z', comments: [{ at: '2026-09-30T01:00:00.000Z' }] }, now)).toBe(true);
+    const base = { identifier: 'AI-1', title: 'Example' };
+    expect(issueHasCommentToday({ ...base, comments: [{ at: '2026-09-29T16:00:00.000Z' }] }, now)).toBe(true);
+    expect(issueHasCommentToday({ ...base, comments: [{ at: '2026-09-29T15:59:59.999Z' }, { at: 'invalid' }] }, now)).toBe(false);
+    expect(issueHasCommentToday({ ...base, comments: [{ at: '2026-09-30T16:00:00.000Z' }] }, now)).toBe(false);
   });
 
   it('extracts the submitted entry instead of the whole log', () => {

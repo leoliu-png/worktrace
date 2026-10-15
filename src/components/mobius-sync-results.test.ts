@@ -31,4 +31,21 @@ describe('dashboard Issue matching results', () => {
     expect(html).toContain('手动提交与 MCP 提交都会显示');
     expect(html).toContain('/console/issue-matches');
   });
+
+  it('shows HTTP failure details while still rendering older records without them', () => {
+    const entry = { section: '完成事项', text: '优化匹配' };
+    const run: MobiusSyncRun = {
+      id: 'failed-run', workLogId: 'log-1', logTitle: '日志', reportDate: '2026-10-14', source: 'web', status: 'error', createdAt: '2026-10-14T14:00:00.000Z', finishedAt: '2026-10-14T14:00:01.000Z',
+      result: { status: 'error', posted: 0, alreadyUpdated: 0, unmatched: 0, failed: 2, postedComments: [], items: [
+        { status: 'error', entries: [entry], reason: 'jev_unavailable', matching: [{ entry, method: 'jev', failure: { provider: 'typesafe', kind: 'http', httpStatus: 429, elapsedMs: 1230 } }] },
+        { status: 'error', entries: [entry], reason: 'jev_unavailable', matching: [{ entry, method: 'jev' }] },
+      ] },
+    };
+    const html = renderToStaticMarkup(createElement(MobiusSyncResults, { runs: [run], locale: 'zh' }));
+    expect(html).toContain('服务返回错误');
+    expect(html).toContain('HTTP 429');
+    expect(html).toContain('typesafe');
+    expect(html).toContain('1.23');
+    expect(html).toContain('Jev 调用失败或超时');
+  });
 });

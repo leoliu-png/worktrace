@@ -12,6 +12,12 @@ export function MobiusMatchDetails({ decisions, locale }: { decisions?: MobiusMa
       {decisions.length > 1 && <p>{decision.entry.text}</p>}
       {decision.selected && <p>{text('选择结果', 'Selected')}：{choice(decision.selected)}</p>}
       {decision.method === 'jev' && <>
+        {decision.failure && <p className="wt-match-note">{text('调用错误', 'Request error')}：{({
+          http: text('服务返回错误', 'Service returned an error'),
+          timeout: text('请求超时', 'Request timed out'),
+          network: text('网络连接失败', 'Network connection failed'),
+          invalid_response: text('返回数据不符合要求', 'Invalid response'),
+        })[decision.failure.kind]}{decision.failure.httpStatus !== undefined && ` · HTTP ${decision.failure.httpStatus}`} · {decision.failure.provider} · {(decision.failure.elapsedMs / 1000).toFixed(2)} {text('秒', 's')}</p>}
         <dl className="wt-match-metrics">
           {decision.confidence !== undefined && <div><dt>Confidence</dt><dd>{percent(decision.confidence)}</dd></div>}
           {decision.margin !== undefined && <div><dt>{text('领先幅度', 'Lead over runner-up')}</dt><dd>{percent(decision.margin)}</dd></div>}
