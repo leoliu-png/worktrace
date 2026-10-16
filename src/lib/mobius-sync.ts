@@ -7,9 +7,10 @@ import { createMobiusParticipatingScope, MobiusParticipatingScopeError } from '.
 import { workTraceReportDate } from './report-date';
 import type { MobiusSyncItem, MobiusSyncReason, MobiusSyncResult, MobiusSyncSource } from './mobius-sync-result';
 import type { MobiusMatchDecision } from './mobius-match';
+import { createMobiusCommentImageSync, MobiusImageSyncError } from './mobius-comment-images';
 
 export type { MobiusSyncResult } from './mobius-sync-result';
-export type MobiusSyncDatabase = Pick<ReturnType<typeof createDatabase>, 'startMobiusSyncRun' | 'finishMobiusSyncRun' | 'claimMobiusComment' | 'markMobiusCommentPosted' | 'releaseMobiusCommentClaim'>;
+export type MobiusSyncDatabase = Pick<ReturnType<typeof createDatabase>, 'startMobiusSyncRun' | 'finishMobiusSyncRun' | 'claimMobiusComment' | 'markMobiusCommentPosted' | 'releaseMobiusCommentClaim' | 'getWorkLogAttachment'>;
 type SyncOptions = { source?: MobiusSyncSource; database?: MobiusSyncDatabase };
 
 type ToolData = Record<string, unknown>;
@@ -54,7 +55,7 @@ async function connectMobius(token: string) {
   const transport = new StreamableHTTPClientTransport(url, {
     requestInit: { headers: { Authorization: `Bearer ${token}` } },
     fetch: (input, init) => {
-      const signal = init?.method?.toUpperCase() === 'GET' ? init.signal : AbortSignal.any([init?.signal, AbortSignal.timeout(10_000)].filter((part): part is AbortSignal => Boolean(part)));
+      const signal = init?.method?.toUpperCase() === 'GET' ? init.signal : AbortSignal.any([init?.signal, AbortSignal.timeout(30_000)].filter((part): part is AbortSignal => Boolean(part)));
       return fetch(input, { ...init, signal });
     },
   });
@@ -63,8 +64,8 @@ async function connectMobius(token: string) {
   return client;
 }
 
-async function call(client: Client, name: string, args: Record<string, unknown>) {
-  return toolData(await client.callTool({ name, arguments: args }, undefined, { timeout: 10_000 }));
+async function call(client: Client, name: string, args: Record<string, unknown>, timeout = 10_000) {
+  return toolData(await client.callTool({ name, arguments: args }, undefined, { timeout }));
 }
 
 async function getIssue(client: Client, identifier: string) {
@@ -142,11 +143,13 @@ export async function syncMobiusForWorkLog(log: LocalWorkLog, author: { email?: 
     }
 
     const today = workTraceReportDate(now);
+    const commentImages = createMobiusCommentImageSync(log, database, (args) => call(client!, 'upload_attachment', args, 30_000), appOrigin());
     for (const [identifier, group] of grouped) {
       const item: MobiusSyncItem = { status: 'skipped', entries: group.entries, matching: group.matching, ...issueFields(group.issue) };
       result.items.push(item);
       let claimId: string | null = null;
       try {
+        let commentEntries = group.entries;
         for (let check = 0; check < 2; check++) {
           const issue = await getIssue(client, identifier);
           Object.assign(item, issueFields(issue));
@@ -164,10 +167,11 @@ export async function syncMobiusForWorkLog(log: LocalWorkLog, author: { email?: 
           if (check === 0) {
             claimId = database.claimMobiusComment(identifier, today, log.id, now);
             if (!claimId) { result.alreadyUpdated++; item.reason = 'duplicate'; break; }
+            commentEntries = await commentImages(group.entries);
           }
         }
         if (item.reason) continue;
-        const body = mobiusCommentBody(log, group.entries, author.name?.replace(/[\r\n]/g, ' ').slice(0, 100) || author.email, appOrigin());
+        const body = mobiusCommentBody(log, commentEntries, author.name?.replace(/[\r\n]/g, ' ').slice(0, 100) || author.email, appOrigin());
         const posted = await client.callTool({ name: 'add_comment', arguments: { identifier, body } }, undefined, { timeout: 10_000 });
         if (posted.isError) throw new Error('Mobius refused the comment.');
         item.status = 'posted';
@@ -179,7 +183,11 @@ export async function syncMobiusForWorkLog(log: LocalWorkLog, author: { email?: 
         database.markMobiusCommentPosted(postedClaimId);
       } catch (error) {
         result.failed++;
-        if (item.status !== 'posted') { item.status = 'error'; item.reason = error instanceof MobiusParticipatingScopeError ? 'participating_unavailable' : 'comment_failed'; }
+        if (item.status !== 'posted') {
+          item.status = 'error';
+          item.reason = error instanceof MobiusParticipatingScopeError ? 'participating_unavailable'
+            : error instanceof MobiusImageSyncError ? 'image_sync_failed' : 'comment_failed';
+        }
         reportSyncError(`comment ${identifier}`, error, token);
       } finally {
         if (claimId) database.releaseMobiusCommentClaim(claimId);

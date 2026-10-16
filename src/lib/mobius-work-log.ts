@@ -3,6 +3,7 @@ import { workTraceReportDate } from './report-date';
 import type { JevFailureReason, MobiusMatchDecision } from './mobius-match';
 import { isPlannedWorkItem, workLogSectionHeading } from './work-log-sections';
 import { markdownListItemContent, markdownWithoutCode, markdownWorkBlocks } from './markdown-work-items';
+import { markdownImageContent, markdownImageReferences, mergeWorkLogImages, workLogImageMarkdown, type WorkLogImage } from './markdown-work-log-images';
 
 export type MobiusIssue = {
   identifier: string;
@@ -19,7 +20,7 @@ export type MobiusIssue = {
   activity?: Array<{ at?: string }>;
 };
 
-export type WorkLogEntry = { section: string; text: string };
+export type WorkLogEntry = { section: string; text: string; images?: WorkLogImage[] };
 
 const englishStopWords = new Set([
   'about', 'after', 'again', 'already', 'also', 'and', 'auto', 'automated', 'automation',
@@ -38,10 +39,10 @@ const chineseStopWords = new Set([
 function cleanEntry(value: string) {
   const text = markdownListItemContent(value);
   return markdownWithoutCode(text).split('\n').map((line, index) => {
+    if (/^\s*(?:[-*+]|\d+[.)])\s*$/.test(line)) return '';
     if (index === 0) line = line.replace(/^\s*(?:\[[ xX]\]\s+|>\s*)/, '');
     const prefix = index === 0 ? '' : line.match(/^(?:\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?|\s+)/)?.[0] ?? '';
     return prefix + line.slice(prefix.length)
-      .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .replace(/[`*_~]/g, '')
       .replace(/<[^>]+>/g, '')
@@ -49,10 +50,17 @@ function cleanEntry(value: string) {
   }).join('\n').trim();
 }
 
+function entryContent(value: string, referenceContext: string | ReadonlyMap<string, string> = value) {
+  const { text, images } = markdownImageContent(value, referenceContext);
+  return { text: cleanEntry(text), ...(images.length ? { images: mergeWorkLogImages(images) } : {}) };
+}
+
 function sectionEntries(value: string, defaultSection: string, plansOnly = false) {
   const entries: WorkLogEntry[] = [];
+  const references = markdownImageReferences(value);
   let section = defaultSection;
   let planDepth: number | undefined = plansOnly ? 0 : undefined;
+  let previous: WorkLogEntry | undefined;
   const labels = { completed: '完成事项', inProgress: '进行中', blockers: '阻塞 / 风险', nextPlan: '明日计划' };
   for (const block of markdownWorkBlocks(value)) {
     if (block.kind === 'code') continue;
@@ -61,6 +69,7 @@ function sectionEntries(value: string, defaultSection: string, plansOnly = false
       const heading = line.match(/^\s*(#{1,6})\s+(.+)$/);
       const named = workLogSectionHeading(heading?.[2] ?? line, Boolean(heading));
       if (heading || named) {
+        previous = undefined;
         const depth = heading?.[1].length ?? 0;
         if (heading && planDepth !== undefined && planDepth > 0 && depth > planDepth) continue;
         planDepth = plansOnly || named === 'nextPlan' ? depth : undefined;
@@ -69,8 +78,15 @@ function sectionEntries(value: string, defaultSection: string, plansOnly = false
       }
     }
     const planned = planDepth !== undefined || isPlannedWorkItem(line);
-    const text = cleanEntry(line);
-    if (text.length >= 5) entries.push({ section: planned ? '明日计划' : section, text });
+    const content = entryContent(line, references);
+    if (content.text.length >= 5) {
+      previous = { section: planned ? '明日计划' : section, ...content };
+      entries.push(previous);
+    } else if (!content.text && content.images?.length && previous) {
+      // Pasting after a list item can produce an unindented image paragraph.
+      // It belongs to the preceding task, including when that task is a Todo.
+      previous.images = mergeWorkLogImages(previous.images, content.images);
+    } else if (content.text) previous = undefined;
   }
   return entries;
 }
@@ -80,8 +96,8 @@ type EntryLog = Pick<LocalWorkLog, 'completed' | 'inProgress' | 'blockers' | 'ne
 function submittedEntries(log: EntryLog) {
   const structured = [
     ...log.completed.flatMap((item): WorkLogEntry[] => {
-      const text = cleanEntry(item);
-      return text.length >= 5 ? [{ section: isPlannedWorkItem(item) ? '明日计划' : '完成事项', text }] : [];
+      const content = entryContent(item);
+      return content.text.length >= 5 ? [{ section: isPlannedWorkItem(item) ? '明日计划' : '完成事项', ...content }] : [];
     }),
     ...sectionEntries(log.inProgress, '进行中'),
     ...sectionEntries(log.blockers, '阻塞 / 风险'),
@@ -92,7 +108,13 @@ function submittedEntries(log: EntryLog) {
   const actual = (log.markdownContent.trim() ? markdown : structured).filter((entry) => entry.section !== '明日计划');
   const planned = [...structured, ...markdown].filter((entry) => entry.section === '明日计划');
   const entries = [...actual, ...planned];
-  return entries.filter((entry, index) => entries.findIndex((other) => other.section === entry.section && other.text === entry.text) === index);
+  const unique: WorkLogEntry[] = [];
+  for (const entry of entries) {
+    const previous = unique.find((other) => other.section === entry.section && other.text === entry.text);
+    if (!previous) unique.push(entry);
+    else if (entry.images?.length) previous.images = mergeWorkLogImages(previous.images, entry.images);
+  }
+  return unique;
 }
 
 export function workLogEntries(log: EntryLog) {
@@ -228,7 +250,10 @@ export function issueHasCommentToday(issue: MobiusIssue, now = new Date()) {
 
 export function mobiusCommentBody(log: Pick<LocalWorkLog, 'id' | 'reportDate'>, entries: WorkLogEntry[], authorName: string, appUrl?: string) {
   const grouped = new Map<string, string[]>();
-  for (const entry of entries) grouped.set(entry.section, [...(grouped.get(entry.section) ?? []), entry.text]);
+  for (const entry of entries) {
+    const content = [entry.text, ...(entry.images ?? []).map(workLogImageMarkdown)].join('\n\n');
+    grouped.set(entry.section, [...(grouped.get(entry.section) ?? []), content]);
+  }
   const sections = [...grouped].map(([section, lines]) => `**${section}**\n${lines.map((line) => `- ${line.replace(/\n/g, '\n  ')}`).join('\n')}`);
   const base = appUrl?.replace(/\/$/, '');
   const link = base ? `\n\n[查看 WorkTrace 工作日志](${base}/console/logs/${encodeURIComponent(log.id)})` : '';

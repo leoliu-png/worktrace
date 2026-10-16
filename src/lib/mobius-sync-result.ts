@@ -2,7 +2,7 @@ import type { WorkLogEntry } from './mobius-work-log';
 import type { JevFailureReason, MobiusMatchDecision } from './mobius-match';
 
 export type MobiusSyncSource = 'web' | 'mcp' | 'api';
-export type MobiusSyncReason = 'not_configured' | 'author_not_enabled' | 'different_author' | 'past_report_date' | 'empty' | 'planned_work' | 'entry_limit' | 'multiple_ids' | 'no_match' | 'ambiguous' | 'done' | 'ineligible_state' | 'not_related' | 'stopped' | 'updated_today' | 'commented_today' | 'duplicate' | 'matching_failed' | 'comment_failed' | 'connection_failed' | 'token_account_mismatch' | 'no_comment_permission' | 'persistence_failed' | 'participating_unavailable' | 'low_confidence' | JevFailureReason;
+export type MobiusSyncReason = 'not_configured' | 'author_not_enabled' | 'different_author' | 'past_report_date' | 'empty' | 'planned_work' | 'entry_limit' | 'multiple_ids' | 'no_match' | 'ambiguous' | 'done' | 'ineligible_state' | 'not_related' | 'stopped' | 'updated_today' | 'commented_today' | 'duplicate' | 'matching_failed' | 'comment_failed' | 'image_sync_failed' | 'connection_failed' | 'token_account_mismatch' | 'no_comment_permission' | 'persistence_failed' | 'participating_unavailable' | 'low_confidence' | JevFailureReason;
 export type MobiusSyncItem = {
   status: 'posted' | 'skipped' | 'unmatched' | 'error';
   entries: WorkLogEntry[];

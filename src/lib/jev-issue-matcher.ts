@@ -75,7 +75,7 @@ function buildRequest(entries: WorkLogEntry[], issues: MobiusIssue[], model: str
     criteria,
   }]));
   return { model, provider: { allow_fallbacks: false }, state: {
-    log_entries: Object.fromEntries(entries.map((entry, index) => [`entry_${index}`, entry])),
+    log_entries: Object.fromEntries(entries.map((entry, index) => [`entry_${index}`, { section: entry.section, text: entry.text }])),
     candidate_issues: candidateIssues,
   }, questions };
 }

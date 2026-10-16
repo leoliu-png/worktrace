@@ -32,6 +32,7 @@ const reasons: Record<MobiusSyncReason, [string, string]> = {
   duplicate: ['该 Issue 今天已同步，或正在同步，未重复评论。', 'The issue was already synced today or is being synced; no duplicate comment was posted.'],
   matching_failed: ['匹配失败；日志已保存。', 'Matching failed; the log was saved.'],
   comment_failed: ['发表评论失败；日志已保存。', 'Posting the comment failed; the log was saved.'],
+  image_sync_failed: ['日志图片同步到 Mobius 失败，本条未发表评论；日志和原图已保存，可稍后重试。', 'Log images could not be synced to Mobius, so this comment was not posted. The log and original images were saved; retry later.'],
   connection_failed: ['Mobius 连接失败；日志已保存。', 'The Mobius connection failed; the log was saved.'],
   token_account_mismatch: ['Mobius 令牌所属账号与日志作者不一致，未发表评论。', 'The Mobius token account differs from the log author; no comment was posted.'],
   no_comment_permission: ['当前 Mobius 账号没有评论权限。', 'The connected Mobius account cannot post comments.'],
