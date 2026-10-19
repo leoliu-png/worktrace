@@ -4,13 +4,15 @@ import { ConsolePageFrame } from '@/components/console-page-frame';
 import { MarkdownContent } from '@/components/markdown-content';
 import { MarkdownEditor } from '@/components/markdown-editor';
 import { MobiusSyncNotice } from '@/components/mobius-sync-notice';
+import { TimeOffSyncNotice } from '@/components/time-off-sync-notice';
 import { createDatabase } from '@/lib/db';
 import { workLogMarkdownContent } from '@/lib/markdown-work-log';
 import { currentConsoleUser } from '@/lib/session';
 import { formatWorkTraceDateTime } from '@/lib/time';
 import { loadConsoleData } from '@/lib/worktrace-data';
+import { ImageZoom } from '@/components/image-zoom';
 
-export default async function LogDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string; mobius?: string; posted?: string; unmatched?: string; updated?: string; failed?: string }> }) {
+export default async function LogDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string; mobius?: string; posted?: string; unmatched?: string; updated?: string; failed?: string; timeOff?: string; timeOffReason?: string }> }) {
   const { id } = await params;
   const query = await searchParams;
   const requestedFrom = query.from;
@@ -34,6 +36,7 @@ export default async function LogDetailPage({ params, searchParams }: { params: 
   const suffix = from === 'all' ? '' : `?from=${from}`;
   return <ConsolePageFrame title="工作日志详情" activePath={backHref}>
     <MobiusSyncNotice {...query} status={query.mobius} />
+    <TimeOffSyncNotice status={query.timeOff} reason={query.timeOffReason} />
     <div className="wt-detail-actions">
       <Link href={backHref}>← {backLabel}</Link>
       {canModify && <div className="wt-detail-owner-actions">
@@ -47,7 +50,7 @@ export default async function LogDetailPage({ params, searchParams }: { params: 
         <p>{log.authorName} · {log.authorEmail} · 日报日期：{log.reportDate?.replaceAll('-', '/') ?? formatWorkTraceDateTime(log.createdAt, 'zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })} · 最后提交：{formatWorkTraceDateTime(log.updatedAt ?? log.createdAt, 'zh-CN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
       </header>
       <section><MarkdownEditor initialValue={markdown} readOnly><MarkdownContent value={markdown} /></MarkdownEditor></section>
-      {separateAttachments.length > 0 && <section><h3>图片附件</h3><div className="wt-attachment-grid">{separateAttachments.map((attachment) => <a key={attachment.id} href={`/api/v1/work-logs/${log.id}/attachments/${attachment.id}`} target="_blank" rel="noreferrer"><img src={`/api/v1/work-logs/${log.id}/attachments/${attachment.id}`} alt={attachment.filename} /><span>{attachment.filename}</span></a>)}</div></section>}
+      {separateAttachments.length > 0 && <section><h3>图片附件</h3><p className="wt-description">双击图片可放大查看。</p><ImageZoom><div className="wt-attachment-grid">{separateAttachments.map((attachment) => <a key={attachment.id} href={`/api/v1/work-logs/${log.id}/attachments/${attachment.id}`} target="_blank" rel="noreferrer"><img src={`/api/v1/work-logs/${log.id}/attachments/${attachment.id}`} alt={attachment.filename} /><span>{attachment.filename}</span></a>)}</div></ImageZoom></section>}
     </article>
   </ConsolePageFrame>;
 }

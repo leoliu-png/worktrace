@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { dailySubmissionStatus, validateAgentWorkLog, workLogSectionInputSchema } from './agent-work-logs';
 import type { LocalUser, LocalWorkLog } from './db';
-import { syncMobiusForWorkLog, type MobiusSyncDatabase } from './mobius-sync';
+import { syncWorkLog, type WorkLogSyncDatabase } from './work-log-sync';
 
 export const workTraceMcpTools = {
   prepare_work_log: { description: 'Turn raw work notes into a user-confirmable structured draft. Do not invent optional fields.' },
@@ -13,14 +13,14 @@ export const workTraceMcpTools = {
   get_daily_submission_status: { timezone: 'Asia/Shanghai' },
 } as const;
 
-type Database = MobiusSyncDatabase & {
+type Database = WorkLogSyncDatabase & {
   createWorkLogIdempotent(authorId: string, input: any, key: string): { log: unknown; created: boolean };
   createWorkLog(authorId: string, input: any): unknown;
   upsertDailyWorkLog(authorId: string, input: any): { log: LocalWorkLog; created: boolean };
   upsertDailyWorkLogIdempotent(authorId: string, input: any, key: string): { log: LocalWorkLog; created: boolean };
   updateWorkLog(id: string, actorId: string, actorRole: LocalUser['role'], input: any): LocalWorkLog;
   queryWorkLogs(options: { authorId?: string; query?: string; reportDate?: string; from?: string; to?: string; cursor?: string; limit?: number }): { items: Array<{ id: string; authorId: string; [key: string]: unknown }>; nextCursor: string | null };
-  getWorkLog(id: string): unknown;
+  getWorkLog(id: string): LocalWorkLog | undefined;
   listUsers(): LocalUser[];
 };
 const output = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] });
@@ -35,15 +35,15 @@ export function createWorkTraceMcpServer(database: Database, user: LocalUser) {
     const parsed = validateAgentWorkLog(input);
     if (!parsed.success) return { content: [{ type: 'text' as const, text: 'Validation failed: use a valid non-future reportDate (YYYY-MM-DD), a title, and at least one completed item.' }], isError: true };
     const result = idempotencyKey ? database.upsertDailyWorkLogIdempotent(user.id, parsed.data, idempotencyKey) : database.upsertDailyWorkLog(user.id, parsed.data);
-    const mobius = await syncMobiusForWorkLog(result.log, user, undefined, { source: 'mcp', database });
-    return output({ ...result, mobius });
+    const sync = await syncWorkLog(result.log, user, { source: 'mcp', database });
+    return output({ ...result, ...sync });
   });
   server.registerTool('update_work_log', { description: 'Update an existing WorkTrace work log. The owner may update their own log; administrators may update any log.', inputSchema: { id: z.string().min(1), title: z.string(), completed: z.array(z.string()), inProgress: workLogSectionInputSchema.optional(), blockers: workLogSectionInputSchema.optional(), nextPlan: workLogSectionInputSchema.optional() } }, async ({ id, ...input }) => {
     const parsed = validateAgentWorkLog(input);
     if (!parsed.success) return { content: [{ type: 'text' as const, text: 'Validation failed: title and at least one completed item are required.' }], isError: true };
     const log = database.updateWorkLog(id, user.id, user.role, parsed.data);
-    const mobius = await syncMobiusForWorkLog(log, log.authorId === user.id ? user : {}, undefined, { source: 'mcp', database });
-    return output({ ...log, mobius });
+    const sync = await syncWorkLog(log, log.authorId === user.id ? user : {}, { source: 'mcp', database });
+    return output({ ...log, ...sync });
   });
   server.registerTool('list_work_logs', { description: workTraceMcpTools.list_work_logs.description, inputSchema: { query: z.string().optional(), authorId: z.string().optional(), from: z.string().optional(), to: z.string().optional(), cursor: z.string().optional(), limit: z.number().int().min(1).max(50).optional() } }, async (input) => output(database.queryWorkLogs(input)));
   server.registerTool('get_work_log', { description: workTraceMcpTools.get_work_log.description, inputSchema: { id: z.string().min(1) } }, async ({ id }) => {

@@ -12,6 +12,7 @@ import { markdownFoldRange } from '@/lib/markdown-folding';
 import { imagePasteInsertion, orderedListRenumbering } from '@/lib/markdown-editing';
 import { maxMarkdownCharacters } from '@/lib/markdown-work-log';
 import type { DraftPastedImage } from '@/lib/work-log-draft';
+import { ImageZoom } from './image-zoom';
 
 const maxPastedImages = 5;
 const maxImageBytes = 5 * 1024 * 1024;
@@ -292,7 +293,7 @@ export function MarkdownEditor({ initialValue = '', readOnly = false, children, 
     wrapSelection(view, '[', `](${href.trim()})`, '链接文字');
   }
 
-  return <div className={`wt-markdown-editor${readOnly ? ' wt-markdown-reader' : ''}`}>
+  return <ImageZoom><div className={`wt-markdown-editor${readOnly ? ' wt-markdown-reader' : ''}`}>
     {readOnly && !ready && children}
     {!readOnly && <div className="wt-markdown-toolbar" role="toolbar" aria-label="日志格式">
       <span className="wt-markdown-toolbar-label">排版</span>
@@ -325,5 +326,5 @@ export function MarkdownEditor({ initialValue = '', readOnly = false, children, 
     {pasteError && <p className="wt-form-error wt-markdown-paste-error" role="alert">{pasteError}</p>}
     <div className="wt-markdown-editor-help"><span><strong>Markdown</strong><span aria-hidden="true"> · </span>点击文字显示原文<span aria-hidden="true"> · </span>标题或缩进旁可折叠<span aria-hidden="true"> · </span>Ctrl+V 粘贴图片</span><span className={value.length > maxMarkdownCharacters ? 'wt-markdown-over-limit' : ''}>{value.length} / {maxMarkdownCharacters} 字符</span></div>
     </>}
-  </div>;
+  </div></ImageZoom>;
 }

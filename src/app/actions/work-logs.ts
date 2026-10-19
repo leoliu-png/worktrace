@@ -7,9 +7,23 @@ import { removeImageAttachments, saveImageAttachments } from '@/lib/attachments'
 import { createDatabase, type LocalWorkLog } from '@/lib/db';
 import { normalizeWorkLogSection } from '@/lib/agent-work-logs';
 import { maxMarkdownCharacters, parseMarkdownWorkLog } from '@/lib/markdown-work-log';
-import { syncMobiusForWorkLog, type MobiusSyncResult } from '@/lib/mobius-sync';
+import type { MobiusSyncResult } from '@/lib/mobius-sync';
+import { syncWorkLog } from '@/lib/work-log-sync';
 import { pendingPastedImages, replacePastedImageSources } from '@/lib/pasted-work-log-images';
 import { resolveReportDate } from '@/lib/report-date';
+import { yesterdayWorkLogDraft, type YesterdayWorkLogResult } from '@/lib/yesterday-work-log';
+
+export async function loadYesterdayWorkLog(): Promise<YesterdayWorkLogResult> {
+  const user = (await auth())?.user;
+  if (!user?.id) return { error: 'session' };
+  const database = createDatabase();
+  try {
+    let origin: string | undefined;
+    try { origin = new URL(process.env.NEXT_PUBLIC_APP_URL ?? process.env.AUTH_URL ?? '').origin; } catch {}
+    return yesterdayWorkLogDraft(database, user.id, new Date(), origin);
+  } catch { return { error: 'copy_failed' }; }
+  finally { database.close(); }
+}
 
 async function preparePastedImages(formData: FormData, markdown: string, errorUrl: string) {
   try {
@@ -68,10 +82,11 @@ export async function createWorkLog(formData: FormData): Promise<{ error: string
     throw error;
   } finally { database.close(); }
   if (!savedLog) throw new Error('Saved work log was not found.');
-  const mobius = await syncMobiusForWorkLog(savedLog, user);
+  const { mobius, timeOff } = await syncWorkLog(savedLog, user, { source: 'web' });
   revalidatePath('/console');
   revalidatePath('/console/issue-matches');
-  const redirectTo = `/console/my-logs?created=1${mobiusQuery(mobius)}`;
+  revalidatePath('/console/time-off');
+  const redirectTo = `/console/my-logs?created=1${mobiusQuery(mobius)}&timeOff=${timeOff.status}&timeOffReason=${timeOff.reason ?? ''}`;
   if (draftMode) return { redirectTo };
   redirect(redirectTo);
 }
@@ -107,10 +122,11 @@ export async function updateWorkLog(formData: FormData) {
     throw error;
   } finally { database.close(); }
   if (!savedLog) throw new Error('Saved work log was not found.');
-  const mobius = await syncMobiusForWorkLog(savedLog, savedLog.authorId === user.id ? user : {});
+  const { mobius, timeOff } = await syncWorkLog(savedLog, savedLog.authorId === user.id ? user : {}, { source: 'web' });
   revalidatePath('/console');
   revalidatePath('/console/issue-matches');
-  redirect(`/console/logs/${id}?${from ? `from=${from}&` : ''}saved=1${mobiusQuery(mobius)}`);
+  revalidatePath('/console/time-off');
+  redirect(`/console/logs/${id}?${from ? `from=${from}&` : ''}saved=1${mobiusQuery(mobius)}&timeOff=${timeOff.status}&timeOffReason=${timeOff.reason ?? ''}`);
 }
 
 export async function deleteWorkLog(formData: FormData) {

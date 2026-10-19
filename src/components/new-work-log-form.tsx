@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { createWorkLog } from '@/app/actions/work-logs';
+import { createWorkLog, loadYesterdayWorkLog } from '@/app/actions/work-logs';
+import { replaceMarkdownImageSources } from '@/lib/markdown-work-log-images';
 import { MarkdownEditor } from './markdown-editor';
 import { ReportDatePicker } from './report-date-picker';
 import { WorkLogSubmissionStatus, WorkLogSubmitButton } from './work-log-submit';
@@ -39,6 +40,10 @@ export function NewWorkLogForm({ userId, today, error }: { userId: string; today
   const [submissionError, setSubmissionError] = useState(error ? errors[error] ?? errors.required : '');
   const [submitting, setSubmitting] = useState(false);
   const [discarding, setDiscarding] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [copyNotice, setCopyNotice] = useState('');
+  const [currentToday, setCurrentToday] = useState(today);
+  const copyAbort = useRef<AbortController | null>(null);
   const latest = useRef<WorkLogDraft | undefined>(undefined);
   const images = useRef<DraftPastedImage[]>([]);
   const imageQueue = useRef<Promise<void>>(Promise.resolve());
@@ -124,6 +129,7 @@ export function NewWorkLogForm({ userId, today, error }: { userId: string; today
       setInitialValue(draft.markdownContent);
       setInitialImages(pasted);
       setReportDate(draft.reportDate);
+      setCurrentToday(today);
       setRestored(existing);
       setReady(true);
       if (existing) {
@@ -149,6 +155,7 @@ export function NewWorkLogForm({ userId, today, error }: { userId: string; today
     return () => {
       cancelled = true;
       mounted.current = false;
+      copyAbort.current?.abort();
       flush();
       window.removeEventListener('pagehide', flush);
       window.removeEventListener('beforeunload', beforeClose);
@@ -198,7 +205,7 @@ export function NewWorkLogForm({ userId, today, error }: { userId: string; today
     try {
       window.localStorage.removeItem(workLogDraftKey(userId));
       if (images.current.length) await removeDraftImages(userId, draftId);
-      latest.current = emptyDraft(today);
+      latest.current = emptyDraft(currentToday);
       images.current = [];
       textSaved.current = true;
       imagesSaved.current = true;
@@ -206,31 +213,103 @@ export function NewWorkLogForm({ userId, today, error }: { userId: string; today
       edited.current = false;
       setInitialValue('');
       setInitialImages([]);
-      setReportDate(today);
+      setReportDate(currentToday);
       setEditorKey((key) => key + 1);
       setRestored(false);
       setStatus('草稿已清空');
       setStorageError('');
       setSubmissionError('');
+      setCopyNotice('');
     } catch { setStorageError('草稿清除失败，请稍后重试。'); }
     finally { setDiscarding(false); }
+  }
+
+  async function copyYesterday() {
+    if (copying || submitting || discarding) return;
+    setCopying(true);
+    setSubmissionError('');
+    const controller = new AbortController();
+    copyAbort.current = controller;
+    const pasted: DraftPastedImage[] = [];
+    let applied = false;
+    try {
+      const result = await loadYesterdayWorkLog();
+      if (!mounted.current || controller.signal.aborted) return;
+      if ('error' in result) {
+        const messages = {
+          session: errors.session,
+          not_found: `昨天（${result.sourceDate ?? ''}）没有保存的工作日志。`,
+          too_long: '昨日日志超过当前编辑器的字数上限，未替换当前草稿。',
+          images: '昨日日志的图片无法完整复制：最多支持 5 张图片，每张不超过 5 MB。当前草稿已保留。',
+          copy_failed: '读取昨日日志失败，请稍后重试。当前草稿已保留。',
+        };
+        setSubmissionError(messages[result.error]);
+        return;
+      }
+      const replacements = new Map<string, string>();
+      for (const image of result.images) {
+        const response = await fetch(image.url, { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20_000)]) });
+        if (!response.ok) throw new Error('The image could not be read.');
+        const blob = await response.blob();
+        if (blob.size === 0 || blob.size > 5 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(blob.type)) throw new Error('Invalid copied image.');
+        const file = new File([blob], image.filename, { type: blob.type });
+        const source = URL.createObjectURL(file);
+        pasted.push({ source, file });
+        for (const previousSource of image.sources) replacements.set(previousSource, source);
+      }
+      if (!mounted.current || controller.signal.aborted) return;
+      if ((latest.current?.markdownContent.trim() || images.current.length) && !window.confirm('当前有未提交的草稿。确定用昨日日志替换当前草稿，并将日报日期设为今天吗？')) return;
+      const previousId = latest.current?.id;
+      const draft = { ...emptyDraft(result.reportDate), markdownContent: replaceMarkdownImageSources(result.markdownContent, replacements) };
+      latest.current = draft;
+      images.current = pasted;
+      textSaved.current = true;
+      imagesSaved.current = true;
+      missingImages.current = false;
+      edited.current = true;
+      applied = true;
+      setInitialValue(draft.markdownContent);
+      setInitialImages(pasted);
+      setReportDate(result.reportDate);
+      setCurrentToday(result.reportDate);
+      setEditorKey((key) => key + 1);
+      setRestored(false);
+      setStorageError('');
+      setCopyNotice(`已复制 ${result.sourceDate.replaceAll('-', '/')} 的日志到今天，请更新内容后提交。`);
+      saveSnapshot(draft);
+      if (pasted.length) saveImages(draft.id, pasted);
+      // Remove replaced image drafts only after the new draft has been saved.
+      imageQueue.current = imageQueue.current.then(async () => {
+        if (previousId && previousId !== draft.id && textSaved.current && imagesSaved.current) await removeDraftImages(userId, previousId);
+      }).catch(() => undefined);
+    } catch {
+      if (mounted.current && !controller.signal.aborted) setSubmissionError('复制昨日日志失败，当前草稿已保留。请稍后重试。');
+    } finally {
+      if (!applied) for (const image of pasted) URL.revokeObjectURL(image.source);
+      if (copyAbort.current === controller) copyAbort.current = null;
+      if (mounted.current) setCopying(false);
+    }
   }
 
   return <form className="wt-panel wt-form wt-markdown-form" action={submit}>
     {!ready ? <p role="status">正在恢复草稿…</p> : <>
       {submissionError && <p className="wt-form-error" role="alert">{submissionError}</p>}
-      <div className="wt-markdown-meta"><label><span>日报日期</span><ReportDatePicker defaultValue={today} maxDate={today} value={reportDate} onChange={(value) => { setReportDate(value); changeDraft({ reportDate: value }); }} /></label><p>当前文字显示 Markdown 标记，移开焦点后显示排版；标题与缩进可折叠。</p></div>
+      <div className="wt-markdown-meta"><label><span>日报日期</span><ReportDatePicker defaultValue={today} maxDate={currentToday} value={reportDate} onChange={(value) => { setReportDate(value); changeDraft({ reportDate: value }); }} /></label><p>当前文字显示 Markdown 标记，移开焦点后显示排版；标题与缩进可折叠，双击图片可放大。</p></div>
       <div className="wt-draft-status">
         <p role="status">{restored ? '已恢复上次未提交的草稿。' : '草稿会自动保存在此浏览器，重新打开后可继续编辑。'} {status}</p>
-        <button type="button" className="wt-draft-discard" disabled={submitting || discarding} onClick={discard}>{discarding ? '正在清除…' : '丢弃草稿'}</button>
+        <div className="wt-draft-tools">
+          <button type="button" className="wt-secondary-button" disabled={submitting || discarding || copying} onClick={copyYesterday} aria-busy={copying}>{copying ? '正在复制昨日日志…' : '复制昨日日志到今天'}</button>
+          <button type="button" className="wt-draft-discard" disabled={submitting || discarding || copying} onClick={discard}>{discarding ? '正在清除…' : '丢弃草稿'}</button>
+        </div>
       </div>
+      {copyNotice && <p className="wt-draft-copy-notice" role="status">{copyNotice}</p>}
       {storageError && <p className="wt-form-error" role="alert">{storageError}</p>}
       <MarkdownEditor key={editorKey} initialValue={initialValue} initialPastedImages={initialImages} onChange={(value) => changeDraft({ markdownContent: value })} onPastedImagesChange={(pasted) => {
         images.current = pasted;
         if (latest.current) saveImages(latest.current.id, pasted);
       }} />
       <WorkLogSubmissionStatus />
-      <div className="wt-form-actions"><Link className="wt-secondary-button" href="/console/logs">取消</Link><WorkLogSubmitButton /></div>
+      <div className="wt-form-actions"><Link className="wt-secondary-button" href="/console/logs">取消</Link><WorkLogSubmitButton disabled={copying || discarding} /></div>
     </>}
   </form>;
 }

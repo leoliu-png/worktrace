@@ -36,6 +36,7 @@ export function markdownImageContent(value: string, referenceContext: string | R
 
   const ranges: Array<{ from: number; to: number }> = [];
   const images: WorkLogImage[] = [];
+  const imageRanges: Array<WorkLogImage & { from: number; to: number }> = [];
   parser.parse(value).iterate({ enter(node) {
     if (node.name === 'LinkReference') {
       ranges.push({ from: node.from, to: node.to });
@@ -48,7 +49,10 @@ export function markdownImageContent(value: string, referenceContext: string | R
     const key = node.node.getChild('LinkLabel');
     const source = url ? destination(value.slice(url.from, url.to))
       : references.get(label(key && key.to - key.from > 2 ? value.slice(key.from + 1, key.to - 1) : alt));
-    if (source) images.push({ source, alt });
+    if (source) {
+      images.push({ source, alt });
+      imageRanges.push({ source, alt, from: node.from, to: node.to });
+    }
     ranges.push({ from: node.from, to: node.to });
     return false;
   } });
@@ -58,7 +62,17 @@ export function markdownImageContent(value: string, referenceContext: string | R
     text += value.slice(offset, range.from);
     offset = range.to;
   }
-  return { text: text + value.slice(offset), images };
+  return { text: text + value.slice(offset), images, imageRanges };
+}
+
+export function replaceMarkdownImageSources(value: string, sources: ReadonlyMap<string, string>) {
+  const { imageRanges } = markdownImageContent(value);
+  let markdown = value;
+  for (const image of imageRanges.reverse()) {
+    const source = sources.get(image.source);
+    if (source) markdown = markdown.slice(0, image.from) + workLogImageMarkdown({ source, alt: image.alt }) + markdown.slice(image.to);
+  }
+  return markdown;
 }
 
 export function mergeWorkLogImages(...groups: Array<WorkLogImage[] | undefined>) {

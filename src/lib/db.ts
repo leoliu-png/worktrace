@@ -4,6 +4,7 @@ import { decryptApiKey, verifyApiKey } from './api-keys';
 import { workLogMarkdownContent } from './markdown-work-log';
 import { resolveReportDate, workTraceReportDate } from './report-date';
 import type { MobiusSyncResult, MobiusSyncRun, MobiusSyncSource } from './mobius-sync-result';
+import type { TimeOffConnection, TimeOffSource, TimeOffSyncResult, TimeOffSyncRun } from './time-off-types';
 import { feedbackInputSchema, feedbackReviewSchema, type Feedback, type FeedbackInput, type FeedbackReview, type FeedbackStatus } from './feedback';
 
 type LocalDatabase = Database.Database;
@@ -30,6 +31,8 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     CREATE TABLE IF NOT EXISTS mobius_comment_claims (issue_identifier TEXT NOT NULL, local_date TEXT NOT NULL, work_log_id TEXT NOT NULL REFERENCES work_logs(id) ON DELETE CASCADE, claim_id TEXT NOT NULL, claimed_at TEXT NOT NULL, posted_at TEXT, PRIMARY KEY (issue_identifier, local_date));
     CREATE TABLE IF NOT EXISTS mobius_sync_runs (id TEXT PRIMARY KEY, work_log_id TEXT NOT NULL REFERENCES work_logs(id) ON DELETE CASCADE, log_title TEXT NOT NULL, report_date TEXT NOT NULL, source TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, finished_at TEXT, result_json TEXT);
     CREATE TABLE IF NOT EXISTS work_log_attachments (id TEXT PRIMARY KEY, work_log_id TEXT NOT NULL REFERENCES work_logs(id) ON DELETE CASCADE, filename TEXT NOT NULL, storage_key TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS time_off_connections (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, account_email TEXT NOT NULL, encrypted_token TEXT, enabled INTEGER NOT NULL DEFAULT 1, verified_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS time_off_sync_runs (id TEXT PRIMARY KEY, work_log_id TEXT NOT NULL REFERENCES work_logs(id) ON DELETE CASCADE, log_title TEXT NOT NULL, report_date TEXT NOT NULL, source TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, finished_at TEXT, result_json TEXT);
     CREATE TABLE IF NOT EXISTS api_keys (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, prefix TEXT NOT NULL, lookup_prefix TEXT, hash TEXT NOT NULL, encrypted_secret TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, last_used_at TEXT);
     CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, type TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS feedback (id TEXT PRIMARY KEY, author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, category TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'OPEN', reply TEXT NOT NULL DEFAULT '', reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -53,6 +56,7 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     CREATE INDEX IF NOT EXISTS idx_work_logs_updated ON work_logs(updated_at DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_mobius_sync_runs_created ON mobius_sync_runs(created_at DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_mobius_sync_runs_log ON mobius_sync_runs(work_log_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_time_off_sync_runs_log ON time_off_sync_runs(work_log_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_work_log_attachments_log ON work_log_attachments(work_log_id, created_at ASC);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_work_logs_idempotency ON work_logs(author_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_api_keys_lookup_prefix ON api_keys(lookup_prefix);
@@ -185,6 +189,28 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
         writeAuditEvent(actorId, 'FEEDBACK_REVIEWED', 'FEEDBACK', id);
         return { ...current, ...parsed, reviewedBy: actorId, updatedAt };
       })();
+    },
+    getTimeOffConnection(userId: string): TimeOffConnection | undefined {
+      const row = sqlite.prepare('SELECT * FROM time_off_connections WHERE user_id = ?').get(userId) as any;
+      return row ? { accountEmail: row.account_email, encryptedToken: row.encrypted_token, enabled: Boolean(row.enabled), verifiedAt: row.verified_at } : undefined;
+    },
+    setTimeOffConnection(userId: string, accountEmail: string, encryptedToken: string | null, enabled: boolean): void {
+      sqlite.prepare('INSERT INTO time_off_connections (user_id, account_email, encrypted_token, enabled, verified_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET account_email = excluded.account_email, encrypted_token = excluded.encrypted_token, enabled = excluded.enabled, verified_at = excluded.verified_at')
+        .run(userId, accountEmail, encryptedToken, enabled ? 1 : 0, new Date().toISOString());
+      writeAuditEvent(userId, enabled ? 'TIME_OFF_CONNECTED' : 'TIME_OFF_DISCONNECTED', 'USER', userId);
+    },
+    startTimeOffSyncRun(log: Pick<LocalWorkLog, 'id' | 'title' | 'reportDate'>, source: TimeOffSource): string {
+      const id = crypto.randomUUID();
+      sqlite.prepare("INSERT INTO time_off_sync_runs (id, work_log_id, log_title, report_date, source, status, created_at) VALUES (?, ?, ?, ?, ?, 'syncing', ?)")
+        .run(id, log.id, log.title, log.reportDate, source, new Date().toISOString());
+      return id;
+    },
+    finishTimeOffSyncRun(id: string, result: TimeOffSyncResult): void {
+      sqlite.prepare('UPDATE time_off_sync_runs SET status = ?, finished_at = ?, result_json = ? WHERE id = ?').run(result.status, new Date().toISOString(), JSON.stringify(result), id);
+    },
+    listTimeOffSyncRuns(userId: string): TimeOffSyncRun[] {
+      const rows = sqlite.prepare('SELECT runs.* FROM time_off_sync_runs runs JOIN work_logs ON work_logs.id = runs.work_log_id WHERE work_logs.author_id = ? ORDER BY runs.created_at DESC, runs.id DESC LIMIT 25').all(userId) as any[];
+      return rows.map((row) => ({ id: row.id, workLogId: row.work_log_id, logTitle: row.log_title, reportDate: row.report_date, source: row.source, status: row.status, createdAt: row.created_at, finishedAt: row.finished_at, result: row.result_json ? JSON.parse(row.result_json) : null }));
     },
     startMobiusSyncRun(log: Pick<LocalWorkLog, 'id' | 'title' | 'reportDate'>, source: MobiusSyncSource, now = new Date()): string {
       const id = crypto.randomUUID();
