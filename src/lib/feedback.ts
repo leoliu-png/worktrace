@@ -5,6 +5,8 @@ export const feedbackCategories = ['SUGGESTION', 'BUG', 'EXPERIENCE', 'OTHER'] a
 export const feedbackStatuses = ['OPEN', 'IN_PROGRESS', 'COMPLETED', 'DECLINED'] as const;
 export type FeedbackCategory = typeof feedbackCategories[number];
 export type FeedbackStatus = typeof feedbackStatuses[number];
+export const feedbackHandlingModes = ['AGENT', 'HUMAN'] as const;
+export type FeedbackHandlingMode = typeof feedbackHandlingModes[number];
 
 export const feedbackInputSchema = z.object({
   category: z.enum(feedbackCategories, { error: 'category' }),
@@ -14,12 +16,19 @@ export const feedbackInputSchema = z.object({
 export const feedbackReviewSchema = z.object({
   status: z.enum(feedbackStatuses, { error: 'status' }),
   reply: z.string().trim().max(3000, 'reply'),
+  handlingMode: z.enum(feedbackHandlingModes, { error: 'handlingMode' }).optional(),
+  requestAgent: z.boolean().optional(),
+  agentInstructions: z.string().trim().max(3000, 'reply').optional(),
+  agentRequestKey: z.string().max(200).optional(),
+  expectedAgentRevision: z.number().int().nonnegative().optional(),
+  agentOnly: z.boolean().optional(),
 });
 export type FeedbackInput = z.infer<typeof feedbackInputSchema>;
 export type FeedbackReview = z.infer<typeof feedbackReviewSchema>;
 export type Feedback = FeedbackInput & {
   id: string; authorId: string; authorName: string; authorEmail: string;
   status: FeedbackStatus; reply: string; reviewedBy: string | null;
+  handlingMode: FeedbackHandlingMode; agentRevision: number; agentInstructions: string;
   createdAt: string; updatedAt: string;
 };
 export type FeedbackActionState = { error?: string; createdId?: string; saved?: boolean };
@@ -39,10 +48,14 @@ const errors: Record<string, readonly [string, string]> = {
   description: ['请填写 1–5,000 字的详细说明。', 'Enter details between 1 and 5,000 characters.'],
   category: ['请选择有效的反馈类型。', 'Choose a valid feedback category.'],
   status: ['请选择有效的处理状态。', 'Choose a valid feedback status.'],
+  handlingMode: ['请选择有效的处理方式。', 'Choose a valid handling mode.'],
+  stale: ['反馈已更新，请刷新后重新操作。', 'Feedback has changed. Refresh and try again.'],
+  agent_note: ['再次交给 Agent 时，请填写至少 8 字的补充要求，并选择待处理或处理中。', 'To request another Agent pass, enter at least 8 characters of instructions and select Pending or In progress.'],
   reply: ['处理回复不能超过 3,000 字。', 'The reply must be no more than 3,000 characters.'],
   not_found: ['这条反馈不存在，请刷新页面。', 'This feedback no longer exists. Please refresh.'],
   save_failed: ['反馈保存失败，请稍后重试。', 'Could not save feedback. Please try again.'],
 };
 export const feedbackCategoryLabel = (value: FeedbackCategory, locale: Locale) => categories[value][locale === 'zh' ? 0 : 1];
 export const feedbackStatusLabel = (value: FeedbackStatus, locale: Locale) => statuses[value][locale === 'zh' ? 0 : 1];
+export const feedbackHandlingLabel = (value: FeedbackHandlingMode, locale: Locale) => value === 'HUMAN' ? (locale === 'zh' ? '人工处理' : 'Human handling') : (locale === 'zh' ? 'Agent 处理' : 'Agent handling');
 export const feedbackErrorMessage = (code: string, locale: Locale) => (errors[code] ?? errors.save_failed)[locale === 'zh' ? 0 : 1];

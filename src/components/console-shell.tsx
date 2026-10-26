@@ -22,7 +22,7 @@ type ConsoleShellProps = {
 export function ConsoleShell({ title, eyebrow = 'WORKTRACE CONSOLE', activePath, role = 'MEMBER', user, locale, overviewPeriod = 'week', compactViewport = false, children }: ConsoleShellProps) {
   const navigation = visibleNavigation(role);
   const navigationLabels: Record<string, TranslationKey> = { overview: 'overview', logs: 'logs', 'new-log': 'newLog', 'api-keys': 'apiKeys', 'my-logs': 'myLogs', 'issue-matches': 'issueMatches', 'time-off': 'timeOffSync', feedback: 'feedback', 'admin-feedback': 'feedbackManagement', members: 'members', access: 'access', 'admin-logs': 'adminLogs', audit: 'audit' };
-  const labelFor = (id: string) => t(locale, navigationLabels[id]);
+  const labelFor = (id: string) => id === 'rsi' ? (locale === 'zh' ? '自动优化' : 'Auto improvement') : t(locale, navigationLabels[id]);
 
   return <ConsoleNavigationProgress><div className={`stitch-console${compactViewport ? ' wt-compact-viewport' : ''}`}>
     <aside className="stitch-sidebar"><Link className="stitch-sidebar-brand" href="/"><span aria-hidden>▣</span><b>WorkTrace</b></Link><ConsoleNavigationLink className="stitch-new-log" href="/console/logs/new">＋ {t(locale, 'newLog')}</ConsoleNavigationLink><nav aria-label="控制台导航">{navigation.map((item) => <ConsoleNavigationLink key={item.href} className={activePath === item.href ? 'active' : ''} href={item.href}><span>{item.id === 'overview' ? '▦' : item.id === 'logs' ? '☷' : item.id === 'my-logs' ? '◉' : item.id === 'issue-matches' ? '◎' : item.id === 'api-keys' ? '⌘' : '◇'}</span>{labelFor(item.id)}</ConsoleNavigationLink>)}</nav></aside>

@@ -289,6 +289,10 @@ html,body { background:#f4f7f8; }
 .wt-feedback-card h3 { margin:9px 0 0; color:#213c44; font-size:18px; line-height:1.5; overflow-wrap:anywhere; }
 .wt-feedback-category,.wt-feedback-status { display:inline-block; padding:4px 8px; border-radius:5px; color:#0b6f82; background:#e8f4f0; font-size:12px; font-weight:600; }
 .wt-feedback-status { flex:none; white-space:nowrap; }
+.wt-feedback-badges { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.wt-feedback-mode-human { color:#895510; background:#fff0da; }
+.wt-feedback-mode-agent { color:#086d74; background:#e4f3f1; }
+.wt-feedback-form input[type=checkbox] { width:auto; margin-right:5px; }
 .wt-feedback-status-open { color:#697c83; background:#eef2f3; }
 .wt-feedback-status-in_progress { color:#126687; background:#e3f3fa; }
 .wt-feedback-status-completed { color:#18724f; background:#e4f5eb; }

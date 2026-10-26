@@ -1,3 +1,4 @@
+import { LogEditorLinks } from '../log-editor-links';
 import { redirect } from 'next/navigation';
 import { ConsolePageFrame } from '@/components/console-page-frame';
 import { NewWorkLogForm } from '@/components/new-work-log-form';
@@ -13,6 +14,6 @@ export default async function NewLogPage({ searchParams }: PageProps) {
   const error = (await searchParams).error;
   return <ConsolePageFrame title="新建日志" activePath="/console/logs/new">
     <p className="wt-description">提交后将立即对团队成员可见。</p>
-    <NewWorkLogForm key={user.id} userId={user.id} today={today} error={error} />
+    <LogEditorLinks><NewWorkLogForm key={user.id} userId={user.id} today={today} error={error} /></LogEditorLinks>
   </ConsolePageFrame>;
 }

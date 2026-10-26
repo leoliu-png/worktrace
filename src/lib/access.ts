@@ -12,6 +12,7 @@ const memberNavigation = [
 ];
 
 const adminNavigation = [
+  { id: 'rsi', href: '/console/admin/rsi', label: '自动优化' },
   { id: 'members', href: '/console/admin/members', label: '成员管理' },
   { id: 'access', href: '/console/admin/access', label: '权限控制' },
   { id: 'admin-logs', href: '/console/admin/logs', label: '日志管理' },

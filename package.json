@@ -3,6 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "rsi:start": "node rsi/bin/supervisor.mjs",
+    "rsi:background": "node rsi/bin/background.mjs",
+    "rsi:status": "node rsi/bin/cli.mjs status",
+    "rsi:pause": "node rsi/bin/cli.mjs pause",
+    "rsi:resume": "node rsi/bin/cli.mjs resume",
+    "rsi:stop": "node rsi/bin/cli.mjs stop",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

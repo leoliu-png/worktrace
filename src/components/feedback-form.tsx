@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { reviewFeedback, submitFeedback } from '@/app/actions/feedback';
-import { feedbackCategories, feedbackStatuses, feedbackCategoryLabel, feedbackStatusLabel, feedbackErrorMessage, type FeedbackActionState, type FeedbackCategory, type FeedbackStatus } from '@/lib/feedback';
+import { feedbackCategories, feedbackStatuses, feedbackHandlingModes, feedbackCategoryLabel, feedbackStatusLabel, feedbackHandlingLabel, feedbackErrorMessage, type FeedbackActionState, type FeedbackCategory, type FeedbackStatus, type FeedbackHandlingMode } from '@/lib/feedback';
 import type { Locale } from '@/lib/locale';
 
 const initialState: FeedbackActionState = {};
@@ -38,22 +38,31 @@ export function FeedbackForm({ locale }: { locale: Locale }) {
   </form>;
 }
 
-export function FeedbackReviewForm({ feedbackId, status, reply, locale }: { feedbackId: string; status: FeedbackStatus; reply: string; locale: Locale }) {
+export function FeedbackReviewForm({ feedbackId, status, reply, handlingMode, agentRevision, agentInstructions, locale }: { feedbackId: string; status: FeedbackStatus; reply: string; handlingMode: FeedbackHandlingMode; agentRevision: number; agentInstructions: string; locale: Locale }) {
   const text = (zh: string, en: string) => locale === 'zh' ? zh : en;
   const [state, action, pending] = useActionState(reviewFeedback, initialState);
   const [selectedStatus, setSelectedStatus] = useState(status);
   const [response, setResponse] = useState(reply);
-  useEffect(() => { setSelectedStatus(status); setResponse(reply); }, [status, reply]);
+  const [mode, setMode] = useState(handlingMode);
+  const [instructions, setInstructions] = useState(agentInstructions);
+  const [requestAgent, setRequestAgent] = useState(false);
+  useEffect(() => { setSelectedStatus(status); setResponse(reply); setMode(handlingMode); setInstructions(agentInstructions); setRequestAgent(false); }, [status, reply, handlingMode, agentRevision, agentInstructions]);
+  const handBack = mode === 'AGENT' && handlingMode === 'HUMAN';
   return <details className="wt-feedback-review"><summary>{text('处理这条反馈', 'Review this feedback')}</summary>
     <form className="wt-feedback-form" action={action} aria-busy={pending}>
       <input type="hidden" name="feedbackId" value={feedbackId} />
+      <input type="hidden" name="agentRevision" value={agentRevision} />
       <fieldset disabled={pending}>
         <label><span>{text('处理状态', 'Status')}</span><select name="status" value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value as FeedbackStatus)}>{feedbackStatuses.map((value) => <option key={value} value={value}>{feedbackStatusLabel(value, locale)}</option>)}</select></label>
+        <label><span>{text('处理方式', 'Handled by')}</span><select name="handlingMode" value={mode} onChange={(event) => { setMode(event.target.value as FeedbackHandlingMode); setRequestAgent(false); }}>{feedbackHandlingModes.map(value => <option key={value} value={value}>{feedbackHandlingLabel(value, locale)}</option>)}</select></label>
+        <p className="wt-feedback-hint">{mode === 'HUMAN' ? text('带有“人工处理”标记的反馈会被 Agent 跳过。正在执行的步骤结束后停止后续处理。', 'The Agent skips human-handled feedback and stops after the current step.') : text('待处理、处理中的反馈均可由 Agent 处理；自动运行暂停时，可到自动优化中手动触发。', 'The Agent can process Pending and In progress feedback. When paused, trigger it from Automatic improvement.')}</p>
+        {mode === 'AGENT' && <label><span><input type="checkbox" name="requestAgent" checked={handBack || requestAgent} disabled={handBack} onChange={event => setRequestAgent(event.target.checked)} /> {text('根据补充要求，让 Agent 再处理一轮', 'Request another Agent cycle using the instructions below')}</span></label>}
+        <label><span>{text('给 Agent 的补充要求 / 验收反馈', 'Agent instructions / acceptance feedback')}</span><textarea name="agentInstructions" rows={3} maxLength={3000} minLength={mode === 'AGENT' && (handBack || requestAgent) ? 8 : undefined} required={mode === 'AGENT' && (handBack || requestAgent)} value={instructions} onChange={event => setInstructions(event.target.value)} placeholder={text('写明未通过的原因、复现步骤和期望效果；重新交给 Agent 时至少填写 8 字。', 'Describe the failure, reproduction steps and expected result (at least 8 characters for a new cycle).')} /></label>
         <label><span>{text('处理回复', 'Reply')}</span><textarea name="reply" rows={3} maxLength={3000} value={response} onChange={(event) => setResponse(event.target.value)} placeholder={text('说明处理进展、计划或暂不采纳的原因，提交者可查看。', 'Share progress, plans, or the reason this is not planned. The submitter can see your reply.')} /></label>
         <SubmitButton pending={pending} locale={locale} reviewing />
       </fieldset>
       {state.error && <p className="wt-form-error" role="alert">{feedbackErrorMessage(state.error, locale)}</p>}
-      {state.saved && <p className="wt-feedback-success" role="status">{text('处理结果已保存。', 'Review saved.')}</p>}
+      {state.saved && <p className="wt-feedback-success" role="status">{text('处理结果已保存，Agent 会在下一次读取反馈时同步处理方式。', 'Saved. The Agent will sync the handling mode on its next feedback poll.')}</p>}
     </form>
   </details>;
 }

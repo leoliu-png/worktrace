@@ -1,0 +1,53 @@
+
+/* Local continuous improvement console */
+.wt-rsi-console { display: grid; gap: 24px; }
+.wt-rsi-summary,.wt-rsi-task { display: grid; gap: 14px; padding: 24px; }
+.wt-rsi-console h3,.wt-rsi-console p { margin: 0; }
+.wt-rsi-buttons,.wt-rsi-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.wt-rsi-heading { justify-content: space-between; }
+.wt-rsi-tasks { display: grid; gap: 16px; }
+.wt-rsi-accept { padding: 18px; background: var(--wt-surface-soft,#f1f8f7); display: grid; gap: 12px; }
+.wt-rsi-accept label { display: grid; gap: 8px; }
+.wt-rsi-accept textarea { width: 100%; padding: 10px; font: inherit; border: 1px solid #b6cbce; background: white; }
+.wt-rsi-pre { white-space: pre-wrap; overflow-wrap: anywhere; padding-top: 12px; }
+.wt-rsi-diff { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 520px; overflow: auto; font-size: 13px; }
+.wt-rsi-events { display: grid; gap: 12px; padding-left: 20px; }
+.wt-rsi-events time { color: #607981; display: inline-block; min-width: 180px; margin-right: 12px; }
+.wt-rsi-muted { color: #5c747c; font-size: 13px; }
+.wt-rsi-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.wt-rsi-badge { display: inline-flex; gap: 7px; align-items: center; padding: 5px 11px; border-radius: 20px; background: #edf2f3; color: #45616b; font-size: 13px; }
+.wt-rsi-badge i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.wt-rsi-badge.is-online,.wt-rsi-badge.is-enabled { background: #e7f4ed; color: #286b4d; }
+.wt-rsi-badge.is-paused { background: #eef1f8; color: #4b607f; }
+.wt-rsi-badge.is-offline { background: #f7eeee; color: #8a4747; }
+.wt-rsi-live { display: flex; align-items: flex-start; gap: 16px; padding: 20px; background: #f3f7f7; border-left: 4px solid #90a8af; }
+.wt-rsi-live h3 { font-size: 21px; margin-bottom: 8px; }
+.wt-rsi-live.is-running { border-color: #087e86; background: #edf8f6; }
+.wt-rsi-live-mark { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; border-radius: 50%; background: white; color: #68858d; font-size: 20px; }
+.wt-rsi-live.is-running .wt-rsi-live-mark { color: #087e86; animation: wt-rsi-turn 2s linear infinite; }
+.wt-rsi-operation { display: flex; gap: 10px 20px; flex-wrap: wrap; padding: 14px 18px; border: 1px solid #d0e3e2; }
+.wt-rsi-operation p,.wt-rsi-operation small { flex-basis: 100%; overflow-wrap: anywhere; }
+.wt-rsi-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.wt-rsi-metrics div { display: grid; gap: 5px; padding: 14px; border: 1px solid #d9e5e5; }
+.wt-rsi-metrics span { font-size: 13px; color: #607981; }
+.wt-rsi-metrics strong { font-size: 21px; }
+.wt-rsi-task-state { padding: 5px 10px; border-radius: 5px; background: #edf3f6; font-size: 13px; }
+.wt-rsi-task-state.needs-human { background: #fff1dc; color: #845417; }
+.wt-rsi-task-state.is-complete { background: #e7f4ed; color: #286b4d; }
+.wt-rsi-steps { display: flex; flex-wrap: wrap; gap: 7px; list-style: none; padding: 0; margin: 0; }
+.wt-rsi-steps li { padding: 5px 10px; border-radius: 5px; background: #f0f3f4; color: #6d818a; font-size: 13px; }
+.wt-rsi-steps li.is-current { background: #087e86; color: white; font-weight: 600; }
+.wt-rsi-steps li.is-done { background: #e9f4f1; color: #3b7468; }
+.wt-rsi-manual { padding: 18px; border-left: 3px solid #cda45b; background: #fffaf1; display: grid; gap: 12px; }
+.wt-rsi-manual label { display: grid; gap: 8px; }
+.wt-rsi-manual textarea { width: 100%; padding: 10px; border: 1px solid #cbd8da; background: white; font: inherit; }
+.wt-rsi-last-sweep p { margin-top: 10px; color: #526f78; }
+.wt-rsi-console details { overflow-wrap: anywhere; }
+.wt-rsi-console details summary { cursor: pointer; }
+.wt-rsi-action-message { padding: 12px 14px; border-left: 3px solid #6b919b; background: #eef5f7; overflow-wrap: anywhere; }
+.wt-rsi-action-message.is-error { border-color: #b3483c; color: #983b31; background: #fff2ef; }
+.wt-rsi-action-message.is-success { border-color: #338366; color: #286b4d; background: #edf8f1; }
+.wt-rsi-buttons button:disabled { cursor: not-allowed; opacity: .6; }
+@keyframes wt-rsi-turn { to { transform: rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .wt-rsi-live.is-running .wt-rsi-live-mark { animation: none; } }
+@media(max-width:760px) { .wt-rsi-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } .wt-rsi-summary,.wt-rsi-task { padding: 18px; } .wt-rsi-live { padding: 16px; } }

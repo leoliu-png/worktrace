@@ -37,6 +37,11 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, type TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS feedback (id TEXT PRIMARY KEY, author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, category TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'OPEN', reply TEXT NOT NULL DEFAULT '', reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
   `);
+
+  const feedbackColumns = new Set((sqlite.prepare('PRAGMA table_info(feedback)').all() as { name: string }[]).map(column => column.name));
+  for (const [name, definition] of Object.entries({ handling_mode: "TEXT NOT NULL DEFAULT 'AGENT'", agent_revision: 'INTEGER NOT NULL DEFAULT 0', agent_instructions: "TEXT NOT NULL DEFAULT ''", agent_request_key: "TEXT NOT NULL DEFAULT ''" })) {
+    if (!feedbackColumns.has(name)) sqlite.exec(`ALTER TABLE feedback ADD COLUMN ${name} ${definition}`);
+  }
   const workLogColumns = new Set((sqlite.prepare('PRAGMA table_info(work_logs)').all() as { name: string }[]).map((column) => column.name));
   if (!workLogColumns.has('report_date')) {
     sqlite.exec('ALTER TABLE work_logs ADD COLUMN report_date TEXT');
@@ -84,6 +89,7 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
   function asFeedback(row: any): Feedback {
     return { id: row.id, authorId: row.author_id, authorName: row.author_name, authorEmail: row.author_email,
       category: row.category, title: row.title, description: row.description, status: row.status,
+      handlingMode: row.handling_mode === 'HUMAN' ? 'HUMAN' : 'AGENT', agentRevision: row.agent_revision ?? 0, agentInstructions: row.agent_instructions ?? '',
       reply: row.reply, reviewedBy: row.reviewed_by, createdAt: row.created_at, updatedAt: row.updated_at };
   }
 
@@ -150,7 +156,7 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
       return sqlite.transaction(() => {
         const author = feedbackViewer(authorId);
         const now = new Date().toISOString();
-        const feedback: Feedback = { ...parsed, id: crypto.randomUUID(), authorId, authorName: author.name, authorEmail: author.email, status: 'OPEN', reply: '', reviewedBy: null, createdAt: now, updatedAt: now };
+        const feedback: Feedback = { ...parsed, id: crypto.randomUUID(), authorId, authorName: author.name, authorEmail: author.email, status: 'OPEN', reply: '', handlingMode: 'AGENT', agentRevision: 0, agentInstructions: '', reviewedBy: null, createdAt: now, updatedAt: now };
         sqlite.prepare('INSERT INTO feedback (id, author_id, category, title, description, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
           .run(feedback.id, authorId, feedback.category, feedback.title, feedback.description, feedback.status, now, now);
         writeAuditEvent(authorId, 'FEEDBACK_CREATED', 'FEEDBACK', feedback.id);
@@ -183,11 +189,23 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
         feedbackViewer(actorId, true);
         const current = this.getFeedback(id, actorId);
         if (!current) throw new Error('Feedback was not found');
+        const requestKey = (sqlite.prepare('SELECT agent_request_key FROM feedback WHERE id = ?').get(id) as { agent_request_key: string }).agent_request_key;
+        // A retried acceptance request must not create another repair cycle or overwrite a later handoff.
+        if (parsed.requestAgent && parsed.agentRequestKey && requestKey === parsed.agentRequestKey) return current;
+        if (parsed.expectedAgentRevision !== undefined && parsed.expectedAgentRevision !== current.agentRevision) throw new Error('Feedback has changed');
+        if (parsed.agentOnly && (current.handlingMode === 'HUMAN' || !['OPEN', 'IN_PROGRESS'].includes(current.status))) throw new Error('Feedback has changed');
+        const handlingMode = parsed.handlingMode ?? current.handlingMode;
+        const handBack = handlingMode === 'AGENT' && current.handlingMode === 'HUMAN';
+        const requestAgent = parsed.requestAgent || handBack;
+        const agentInstructions = parsed.agentInstructions ?? current.agentInstructions;
+        if (requestAgent && (handlingMode !== 'AGENT' || !['OPEN', 'IN_PROGRESS'].includes(parsed.status) || agentInstructions.trim().length < 8)) throw new Error('Agent instructions are required');
+        const agentRevision = current.agentRevision + (requestAgent ? 1 : 0);
         const updatedAt = new Date().toISOString();
-        sqlite.prepare('UPDATE feedback SET status = ?, reply = ?, reviewed_by = ?, updated_at = ? WHERE id = ?')
-          .run(parsed.status, parsed.reply, actorId, updatedAt, id);
+        sqlite.prepare('UPDATE feedback SET status = ?, reply = ?, handling_mode = ?, agent_revision = ?, agent_instructions = ?, agent_request_key = ?, reviewed_by = ?, updated_at = ? WHERE id = ?')
+          .run(parsed.status, parsed.reply, handlingMode, agentRevision, agentInstructions, requestAgent ? (parsed.agentRequestKey ?? `admin:${agentRevision}`) : requestKey, actorId, updatedAt, id);
         writeAuditEvent(actorId, 'FEEDBACK_REVIEWED', 'FEEDBACK', id);
-        return { ...current, ...parsed, reviewedBy: actorId, updatedAt };
+        if (requestAgent || handlingMode !== current.handlingMode) writeAuditEvent(actorId, handlingMode === 'HUMAN' ? 'FEEDBACK_HUMAN_HANDOFF' : 'FEEDBACK_AGENT_REQUESTED', 'FEEDBACK', id);
+        return { ...current, status: parsed.status, reply: parsed.reply, handlingMode, agentRevision, agentInstructions, reviewedBy: actorId, updatedAt };
       })();
     },
     getTimeOffConnection(userId: string): TimeOffConnection | undefined {

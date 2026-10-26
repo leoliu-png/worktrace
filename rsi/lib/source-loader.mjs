@@ -1,0 +1,5 @@
+import {registerHooks,createRequire} from 'node:module';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+import {readFileSync,existsSync} from 'node:fs';
+const require=createRequire(import.meta.url);
+export function registerSourceLoader(root){const ts=require('typescript');const prefix=pathToFileURL(root.replace(/[\\/]?$/,'/')).href;registerHooks({resolve(specifier,context,next){if(context.parentURL?.startsWith(prefix)&&specifier.startsWith('.')){const candidate=new URL(specifier,context.parentURL);for(const suffix of ['.ts','.tsx','/index.ts']){const url=candidate.href+suffix;if(existsSync(fileURLToPath(url)))return {url,shortCircuit:true};}}return next(specifier,context);},load(url,context,next){if(url.startsWith(prefix)&&/\.tsx?$/.test(url))return {format:'module',source:ts.transpileModule(readFileSync(fileURLToPath(url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,shortCircuit:true};return next(url,context);}});}

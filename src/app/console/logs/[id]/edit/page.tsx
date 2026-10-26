@@ -1,3 +1,4 @@
+import { LogEditorLinks } from '../../log-editor-links';
 import Link from 'next/link';
 import { updateWorkLog } from '@/app/actions/work-logs';
 import { ConsolePageFrame } from '@/components/console-page-frame';
@@ -29,7 +30,7 @@ export default async function EditLogPage({ params, searchParams }: { params: Pr
         <label><span>日报日期</span><input value={log.reportDate} readOnly /></label>
         <p className="wt-description">当前文字显示 Markdown 标记，移开焦点后显示排版；标题与缩进可折叠。</p>
       </div>
-      <MarkdownEditor initialValue={workLogMarkdownContent(log)} />
+      <LogEditorLinks><MarkdownEditor initialValue={workLogMarkdownContent(log)} /></LogEditorLinks>
       <WorkLogSubmissionStatus />
       <div className="wt-form-actions"><Link className="wt-secondary-button" href={`/console/logs/${log.id}${suffix}`}>取消</Link><WorkLogSubmitButton editing /></div>
     </form>
