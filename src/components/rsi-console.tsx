@@ -4,7 +4,7 @@ import { operateRsi } from '@/app/actions/rsi';
 
 type Task = {
   id: string; title: string; description: string; state: string; updatedAt: string;
-  metadata: { reason?: string; handlingMode?: string; agentInstructions?: string; sourceSha?: string; round?: number; stageUrl?: string; acceptance?: string[]; failureMemory?: { id: string; kind: string; cycle: number; summary: string; sourceSha?: string; issues: { name?: string; file?: string; line?: number; problem?: string; requestedChange?: string; evidence?: string }[] }[]; lastCallFailure?: { kind: string; message: string; at: string } | null; findings?: { stage?: string; summary?: string; review?: { summary?: string }; qa?: { summary?: string; checks?: { name: string; passed: boolean; evidence: string }[] } } };
+  metadata: { reason?: string; implementationReused?: boolean; handlingMode?: string; agentInstructions?: string; sourceSha?: string; round?: number; stageUrl?: string; acceptance?: string[]; scopeHistory?: { at: string; reason: string; alignment: string; oldScope: string[]; newScope: string[] }[]; failureMemory?: { id: string; kind: string; cycle: number; summary: string; sourceSha?: string; issues: { name?: string; file?: string; line?: number; problem?: string; requestedChange?: string; evidence?: string }[] }[]; lastCallFailure?: { kind: string; message: string; at: string } | null; findings?: { stage?: string; summary?: string; review?: { summary?: string }; qa?: { summary?: string; checks?: { name: string; passed: boolean; evidence: string }[] } } };
   policy: { used: number; limit: number; remaining: number; cycle: number; totalUsed: number; totalDeveloperCalls: number; developerCalls: number; callFailures: number; callFailureLimit: number; canContinue: boolean; manualRetries: number; retryAllowed: boolean; retryDisabledReason: string; canClose: boolean };
   approvals: { userId: string; userName: string; sourceSha: string; decision: string; note: string }[];
 };
@@ -26,10 +26,10 @@ type Status = {
   events: { id: number; message: string; createdAt: string; type: string }[];
 };
 const labels: Record<string, string> = {
-  QUEUED: '等待处理', TRIAGING: '整理反馈', DEVELOPING: '正在开发', VERIFYING: '检查代码', REVIEWING: '独立评审', STAGING: '部署与浏览器复测',
+  QUEUED: '等待处理', TRIAGING: '整理反馈', SCOPING: '复核修改范围', DEVELOPING: '正在开发', VERIFYING: '检查代码', REVIEWING: '独立评审', STAGING: '部署与浏览器复测',
   WAITING_ACCEPTANCE: '等待真人验收', ACCEPTED: '已在本地验收', REJECTED: '未通过验收', ESCALATED: '自动处理已停止 · 需人工处理', CLOSED: '已结束自动处理',
 };
-const steps = [['TRIAGING', '整理反馈'], ['DEVELOPING', '开发'], ['VERIFYING', '代码检查'], ['REVIEWING', '独立评审'], ['STAGING', '浏览器复测'], ['WAITING_ACCEPTANCE', '真人验收'], ['ACCEPTED', '本地更新']];
+const steps = [['TRIAGING', '整理反馈'], ['SCOPING', '范围审查'], ['DEVELOPING', '开发'], ['VERIFYING', '代码检查'], ['REVIEWING', '独立评审'], ['STAGING', '浏览器复测'], ['WAITING_ACCEPTANCE', '真人验收'], ['ACCEPTED', '本地更新']];
 const format = (value?: string | null) => value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '尚无记录';
 function duration(now: number, start?: string | null) {
   if (!start) return '—';
@@ -38,8 +38,8 @@ function duration(now: number, start?: string | null) {
 }
 function eventLabel(message: string) {
   if (labels[message]) return labels[message];
-  const role = /^(user|triage|developer|reviewer|qa) 已开始独立会话$/.exec(message)?.[1];
-  const names: Record<string, string> = { user: '用户体验 Agent', triage: '反馈整理 Agent', developer: '开发 Agent', reviewer: '独立评审 Agent', qa: '浏览器复测 Agent' };
+  const role = /^(user|triage|scope|developer|reviewer|qa) 已开始独立会话$/.exec(message)?.[1];
+  const names: Record<string, string> = { user: '用户体验 Agent', triage: '反馈整理 Agent', scope: '范围规划与审查 Agent', developer: '开发 Agent', reviewer: '独立评审 Agent', qa: '浏览器复测 Agent' };
   return role ? `${names[role]} 开始执行` : message === 'baseline 本地应用已启动' ? '本地应用已就绪' : message;
 }
 export function RsiConsole() {
@@ -156,7 +156,7 @@ export function RsiConsole() {
       {status?.lastError && <details><summary>最近一次运行异常 · {format(status.lastError.at)}</summary><p>{status.lastError.message}</p></details>}
     </section>
     <section className="wt-rsi-tasks"><h3>优化任务</h3>
-      <p className="wt-rsi-muted">每个修复周期最多 {status?.settings.maxRepairRounds || 3} 轮代码修复，调用故障上限 {status?.settings.maxInfrastructureFailures || 6} 次。真人验收不通过会携带意见交回 Agent；管理员也可在反馈管理中补充要求，开启新的有限修复周期。普通重启和重排队不会增加额度，全部历史保留。标记“人工处理”的反馈会被 Agent 跳过。</p>
+      <p className="wt-rsi-muted">每个修复周期最多 {status?.settings.maxRepairRounds || 5} 轮代码修复，调用故障上限 {status?.settings.maxInfrastructureFailures || 6} 次。源码补查、范围修正及工具验证不占代码修复轮次；已通过的验证证据会保留。真人验收不通过会携带意见交回 Agent。标记“人工处理”的反馈会被 Agent 跳过。</p>
       {!status?.tasks.length && <div className="wt-panel"><p>暂无任务。可通过“建议反馈”提交具体问题，或点击“巡检一次”让用户 Agent 体验系统。</p></div>}
       {status?.tasks.map(task => {
         const manual = ['ESCALATED', 'REJECTED'].includes(task.state), policy = task.policy;
@@ -167,17 +167,20 @@ export function RsiConsole() {
           <p><span className={`wt-feedback-status wt-feedback-mode-${task.metadata.handlingMode === 'HUMAN' ? 'human' : 'agent'}`}>{task.metadata.handlingMode === 'HUMAN' ? '人工处理 · Agent 跳过' : 'Agent 处理'}</span></p>
           <p>{task.metadata.reason || '等待自动处理。'}</p>
           <p className="wt-rsi-muted">修复周期 {policy.cycle + 1} · 本周期代码修复 {policy.used}/{policy.limit} 轮 · 剩余 {policy.remaining} 轮 · 开发调用 {policy.developerCalls} 次 · 调用故障 {policy.callFailures}/{policy.callFailureLimit} 次 · 历史累计修复 {policy.totalUsed} 轮 / 开发调用 {policy.totalDeveloperCalls} 次</p>
+          {task.metadata.implementationReused && <p className="wt-rsi-muted">本次沿用之前保存的代码进入验证，未新增代码修复轮次。是否满足要求，以检查、独立评审和浏览器复测结果为准。</p>}
           {task.metadata.agentInstructions && <details><summary>查看人工补充要求 / 验收反馈</summary><p className="wt-rsi-pre">{task.metadata.agentInstructions}</p></details>}
-          {task.state === 'CLOSED' && task.metadata.handlingMode === 'HUMAN' && <p>此建议由人工处理，Agent 不会继续执行。需要交回 Agent 时，请到<a href="/console/admin/feedback">反馈管理</a>，切换处理方式并填写补充要求。</p>}
+          {task.state === 'CLOSED' && task.metadata.handlingMode === 'HUMAN' && <p>此建议由人工处理，Agent 不会继续执行。需要交回 Agent 时，请到<a href="/console/admin/feedback">反馈管理</a>，切换为 Agent 处理即可，补充要求可不填。</p>}
           {task.state === 'QUEUED' && <div className="wt-rsi-buttons"><button disabled={busy || !connected || !runtime?.processControl?.allowed || !policy.canContinue} title={runtime?.processControl?.reason} className="wt-secondary-button" onClick={() => act('process', task)}>{processing && activeAction?.taskId === task.id ? '正在安排优化…' : '手动处理此反馈'}</button></div>}
           {!manual && task.state !== 'CLOSED' && <ol className="wt-rsi-steps" aria-label="任务处理阶段">{steps.map(([key, label], index) => <li key={key} aria-current={index === currentStep ? 'step' : undefined} className={index === currentStep ? 'is-current' : currentStep > index ? 'is-done' : ''}>{label}</li>)}</ol>}
           <details><summary>查看原始反馈与验收要求</summary><p className="wt-rsi-pre">{task.description}</p>{task.metadata.acceptance && <ul>{task.metadata.acceptance.map((item, index) => <li key={index}>{item}</li>)}</ul>}</details>
+          {!!task.metadata.scopeHistory?.length && <details><summary>范围调整记录 · {task.metadata.scopeHistory.length} 次</summary>{task.metadata.scopeHistory.map((item,index)=><div key={`${item.at}-${index}`}><strong>{format(item.at)}</strong><p>{item.reason}</p><p>{item.alignment}</p><p className="wt-rsi-pre">原范围：{item.oldScope.join('、') || '未分配'}{`\n`}批准范围：{item.newScope.join('、')}</p></div>)}</details>}
           {!!task.metadata.failureMemory?.length && <details><summary>历史问题记录 · {task.metadata.failureMemory.length} 条 · 新周期会继承</summary><p className="wt-rsi-muted">以下是历史检查、评审和复测发现；是否已解决，以当前版本的新验证为准。各 Agent 收到问题记录，独立评审不共享开发对话。</p>{task.metadata.failureMemory.map(item => <div key={item.id}><strong>周期 {item.cycle + 1} · {({ review: '独立评审', browser: '浏览器复测', checks: '代码检查', developer: '开发待验证说明' } as Record<string, string>)[item.kind] || item.kind}{item.sourceSha ? ` · ${item.sourceSha.slice(0, 8)}` : ''}</strong><p className="wt-rsi-pre">{item.summary}</p>{item.issues.length > 0 && <ul>{item.issues.map((issue, index) => <li key={index}>{issue.file ? `${issue.file}${issue.line ? `:${issue.line}` : ''}：` : issue.name ? `${issue.name}：` : ''}{issue.problem || issue.evidence || ''}{issue.requestedChange && <p>{issue.requestedChange}</p>}</li>)}</ul>}</div>)}</details>}
           {task.metadata.lastCallFailure && <div className="wt-rsi-action-message is-error"><strong>最近一次调用故障 · {format(task.metadata.lastCallFailure.at)}</strong><p>{task.metadata.lastCallFailure.message}</p></div>}
           {task.metadata.findings && <details><summary>查看最近代码检查或评审问题</summary><p className="wt-rsi-pre">{task.metadata.findings.qa?.summary || task.metadata.findings.review?.summary || task.metadata.findings.summary || '代码检查未通过，相关记录已保留。'}</p>{failures.length > 0 && <ul>{failures.map((item, index) => <li key={index}><strong>{item.name}</strong><p>{item.evidence}</p></li>)}</ul>}</details>}
           {task.state === 'WAITING_ACCEPTANCE' && <div className="wt-rsi-accept">
             <p>等待两名不同账号验收同一版本。当前通过 {new Set(task.approvals.filter(item => item.sourceSha === task.metadata.sourceSha && item.decision === 'approve').map(item => item.userId)).size}/2 人。</p>
-            <div className="wt-rsi-buttons"><a className="wt-primary-button" href={`${status.stageUrl}/_rsi/login/member`} target="_blank" rel="noreferrer">打开测试版</a><button className="wt-secondary-button" onClick={() => void showPatch(task)}>查看代码改动</button></div>
+            <div className="wt-rsi-buttons"><a className="wt-primary-button" href={`${status.stageUrl}/_rsi/acceptance`} target="_blank" rel="noreferrer">打开测试版</a><button className="wt-secondary-button" onClick={() => void showPatch(task)}>查看代码改动</button></div>
+            <p className="wt-rsi-muted">打开后可选择管理员 A 或 B，直接测试“建议反馈”，再以所选账号进入验收页。</p>
             <label>验收说明<textarea value={notes[task.id] || ''} onChange={event => setNotes(values => ({ ...values, [task.id]: event.target.value }))} rows={2} maxLength={1000} placeholder="不通过时至少填写 8 字：具体问题、复现步骤、期望效果，意见会交给 Agent 继续修复。" /></label>
             <div className="wt-rsi-buttons"><button disabled={busy || !connected} className="wt-primary-button" onClick={() => act('approve', task)}>本人验收通过</button><button disabled={busy || !connected} className="wt-secondary-button" onClick={() => act('reject', task)}>验收不通过，交回 Agent 修复</button></div>
             {task.approvals.map(item => <p key={`${item.userId}-${item.sourceSha}`}>{item.userName}：{item.decision === 'approve' ? '通过' : '未通过'} {item.note}</p>)}
@@ -186,7 +189,7 @@ export function RsiConsole() {
             <strong>{task.metadata.handlingMode === 'HUMAN' ? '已标记人工处理，Agent 将跳过此建议' : policy.canContinue ? policy.remaining ? '处理原因后可从保存的阶段继续' : '可继续未完成的检查，无需重新开发' : '已停止自动开发，后续由人工处理'}</strong>
             <p>{policy.retryAllowed ? '仅在排除临时故障或补充了具体方案后，允许人工恢复一次；继续沿用剩余开发额度。' : policy.retryDisabledReason}</p>
             <p>可查看失败记录，人工修复代码或明确调整需求。恢复自动运行会继续其他任务，不会循环执行本建议。</p>
-            {task.metadata.handlingMode === 'HUMAN' && <p>如需 Agent 继续修复，请到<a href="/console/admin/feedback">反馈管理</a>切换为“Agent 处理”，并填写具体补充要求。</p>}
+            {task.metadata.handlingMode === 'HUMAN' && <p>如需 Agent 继续修复，请到<a href="/console/admin/feedback">反馈管理</a>切换为“Agent 处理”即可，补充要求可不填。</p>}
             <label>{policy.retryAllowed ? '人工处理说明（转人工可不填，恢复任务至少 8 字）' : '人工处理说明（选填）'}<textarea value={notes[task.id] || ''} onChange={event => setNotes(values => ({ ...values, [task.id]: event.target.value }))} rows={2} maxLength={1000} placeholder={policy.retryAllowed ? '可记录后续由谁、如何处理；如需恢复任务，请至少填写 8 字的具体处理方案。' : '可记录后续由谁、如何处理；要交回 Agent，请到反馈管理切换处理方式。'} /></label>
             <div className="wt-rsi-buttons">
               {policy.retryAllowed && <button disabled={busy || !connected} className="wt-secondary-button" onClick={() => act('retry', task)}>{activeAction?.taskId === task.id && activeAction.action === 'retry' ? '正在恢复任务…' : '补充方案后恢复一次'}</button>}

@@ -4,7 +4,7 @@ import {existsSync,readFileSync,mkdirSync,writeFileSync} from 'node:fs';
 import {randomBytes} from 'node:crypto';
 
 export const projectRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
-export const defaultSettings={enabled:true,sweepMinutes:60,pollSeconds:60,maxTasksPerDay:3,maxAgentRunsPerDay:16,maxRepairRounds:3,maxStageAttempts:3,maxInfrastructureFailures:6,developerReasoningEffort:'high',reviewerReasoningEffort:'high',agentTimeoutSeconds:900,commandTimeoutSeconds:300,maxChangedFiles:12,maxDiffBytes:100000,browserChannel:process.platform==='win32'?'msedge':'',controlPort:3044,appPort:3040,stagePort:3042};
+export const defaultSettings={enabled:true,sweepMinutes:60,pollSeconds:60,maxTasksPerDay:6,maxAgentRunsPerDay:16,maxRepairRounds:5,maxStageAttempts:3,maxVerificationAttempts:5,maxInfrastructureFailures:6,developerReasoningEffort:'high',reviewerReasoningEffort:'high',agentTimeoutSeconds:900,commandTimeoutSeconds:300,maxChangedFiles:12,maxDiffBytes:100000,browserChannel:process.platform==='win32'?'msedge':'',controlPort:3044,appPort:3040,stagePort:3042};
 export function loadConfig(){
  const home=path.resolve(process.env.RSI_HOME||path.join(projectRoot,'../service-runtime'));
  if(home===projectRoot||home.startsWith(projectRoot+path.sep))throw Error('RSI_HOME must be outside the source checkout.');
@@ -17,7 +17,7 @@ export function loadConfig(){
  return {...settings,home,projectRoot,configFile:filename,controlSecret:readFileSync(secretFile,'utf8').trim(),database:path.join(home,'runtime.db'),worktraceDatabase:path.join(home,'worktrace.db'),integrationRef:'refs/heads/codex/rsi-local-integration',codexEntry:process.env.RSI_CODEX_ENTRY||'',appUrl:`http://127.0.0.1:${settings.appPort}`,stageUrl:`http://127.0.0.1:${settings.stagePort}`};
 }
 export function validateSettings(value){
- for(const [key,min,max]of [['sweepMinutes',10,1440],['pollSeconds',10,600],['maxTasksPerDay',1,20],['maxAgentRunsPerDay',1,100],['maxRepairRounds',1,3],['maxStageAttempts',1,3],['maxInfrastructureFailures',1,9],['agentTimeoutSeconds',60,1800],['commandTimeoutSeconds',30,900],['maxChangedFiles',1,30],['maxDiffBytes',1000,300000],['controlPort',1024,65000],['appPort',1024,65000],['stagePort',1024,65000]]){
+ for(const [key,min,max]of [['sweepMinutes',10,1440],['pollSeconds',10,600],['maxTasksPerDay',1,20],['maxAgentRunsPerDay',1,100],['maxRepairRounds',1,8],['maxStageAttempts',1,3],['maxVerificationAttempts',1,8],['maxInfrastructureFailures',1,9],['agentTimeoutSeconds',60,1800],['commandTimeoutSeconds',30,900],['maxChangedFiles',1,30],['maxDiffBytes',1000,300000],['controlPort',1024,65000],['appPort',1024,65000],['stagePort',1024,65000]]){
   if(!Number.isInteger(value[key])||value[key]<min||value[key]>max)throw Error(`Invalid setting: ${key}`);
  }
  for(const key of ['developerReasoningEffort','reviewerReasoningEffort'])if(!['medium','high'].includes(value[key]))throw Error(`Invalid setting: ${key}`);

@@ -271,7 +271,11 @@ describe('log link production navigation intercepted locally', () => {
     const reopened = EditorState.create({ doc: saved, extensions: [markdown()] });
     vi.stubGlobal('window', { open });
     try {
-      for (const state of [pasted, reader, reopened]) {
+      for (const pending of [pasted, reader, reopened]) {
+        // These assertions exercise navigation after parsing. A headless state
+        // has no editor background worker to publish the completed syntax tree.
+        expect(ensureSyntaxTree(pending, pending.doc.length, 5000)).not.toBeNull();
+        const state = pending.update({}).state;
         const fixture = navigationFixture(state, true);
         const targets: LocalLinkElement[] = [];
         const before = open.mock.calls.length;

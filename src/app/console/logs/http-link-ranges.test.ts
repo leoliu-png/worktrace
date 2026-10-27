@@ -1,10 +1,14 @@
 import { markdown } from '@codemirror/lang-markdown';
+import { ensureSyntaxTree } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
 import { httpLinkRanges, isHttpLink, markdownHttpLinkRanges } from './http-link-ranges';
 
 function editor(source: string) {
-  return EditorState.create({ doc: source, extensions: [markdown()] });
+  const initial = EditorState.create({ doc: source, extensions: [markdown()] });
+  // These cases assert parsed ranges; background parsing has separate coverage.
+  expect(ensureSyntaxTree(initial, source.length, 5000)).not.toBeNull();
+  return initial.update({}).state;
 }
 
 describe('log editor HTTP links', () => {

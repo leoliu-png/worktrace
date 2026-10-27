@@ -11,11 +11,17 @@ import {checkCandidate,buildFingerprint} from '../lib/checks.mjs';
 import {stopRecordedApp} from '../lib/process.mjs';
 import {processingBlock,canContinueTask} from '../lib/task-policy.mjs';
 import {migrateFailureAccounting} from '../lib/recovery.mjs';
+import {recordLocalUpdate,recoverLocalUpdate} from '../lib/local-update.mjs';
 
 const config={...loadConfig(),appAuthSecret:randomBytes(48).toString('base64url'),appEncryptionSecret:randomBytes(48).toString('base64url')};
 const store=new Store(config.database),owner=randomUUID();
 if(!store.acquire(owner)){console.error('已有运行中的 WorkTrace 自动优化服务。');store.close();process.exit(2);}
-store.recover();const accountingRecovered=migrateFailureAccounting(config,store);store.set('agentRetry',null);store.set('currentWork',null);store.set('phase','准备本地应用');store.set('appReady',false);store.set('serviceStartedAt',new Date().toISOString());
+const previousAgent=store.get('activeProcess');let previousAlive=false;
+if(previousAgent?.pid)try{process.kill(previousAgent.pid,0);previousAlive=true;}catch{}
+const interruptedRuns=store.recoverRuns(previousAlive?previousAgent.runId:null);
+if(!previousAlive)store.set('activeProcess',null);
+if(interruptedRuns.some(run=>run.role==='user'))store.set('lastSweepAttempt',{state:'FAILED',at:new Date().toISOString(),summary:'上次巡检调用中断，未完成页面检查，也未产生有效反馈；运行状态已回收。'});
+store.recover();recoverLocalUpdate(store);const accountingRecovered=migrateFailureAccounting(config,store);store.set('agentRetry',null);store.set('currentWork',null);store.set('phase','准备本地应用');store.set('appReady',false);store.set('serviceStartedAt',new Date().toISOString());
 for(const name of ['baseline','stage']){await stopRecordedApp(config,store.get(`${name}Runtime`));store.set(`${name}Runtime`,null);}
 if(store.get('enabled')===null)store.set('enabled',config.enabled);
 const users=await seed(config),apps=new AppManager(config,store,users),pipeline=new Pipeline(config,store,apps,users);
@@ -66,7 +72,7 @@ async function tick(){
  try{
   if(!store.get('appReady')){if(Date.now()<bootRetry)return;await bootstrap();}
   const orphan=store.get('activeProcess');if(orphan?.pid){let alive=false;try{process.kill(orphan.pid,0);alive=true;}catch{}if(alive){store.set('phase','等待上次 Agent 进程结束，再恢复队列');return;}store.set('activeProcess',null);}
-  const promotion=store.get('pendingPromotion');if(promotion){store.set('pendingPromotion',null);const task=store.find(promotion.taskId);if(task?.state==='WAITING_ACCEPTANCE'&&task.metadata.sourceSha===promotion.sourceSha)await pipeline.promote(task);return;}
+  const promotion=store.get('pendingPromotion');if(promotion){store.set('pendingPromotion',null);const task=store.find(promotion.taskId);if(task?.state==='WAITING_ACCEPTANCE'&&task.metadata.sourceSha===promotion.sourceSha){store.set('phase','正在本地更新');store.set('currentWork',{kind:'promotion',taskId:task.id,title:task.title,startedAt:new Date().toISOString()});await pipeline.promote(task);}else recordLocalUpdate(store,{id:promotion.taskId,title:task?.title||'本地更新',metadata:{sourceSha:promotion.sourceSha}},'CANCELLED','待更新的任务或版本已变化，本地更新已取消。','cancelled');return;}
   if(Date.now()-lastPoll>=config.pollSeconds*1000){await pipeline.ingest();lastPoll=Date.now();}
   const processRequest=store.get('processRequested');
   if(processRequest){await processRequestedFeedback(processRequest);return;}

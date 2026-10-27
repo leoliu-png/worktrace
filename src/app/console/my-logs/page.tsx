@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ResumeWorkLogEdit } from '@/lib/markdown-work-log-edit-draft';
 import { ConsolePageFrame } from '@/components/console-page-frame';
 import { MyLogList } from '@/components/my-log-list';
 import { MobiusSyncNotice } from '@/components/mobius-sync-notice';
@@ -24,6 +25,7 @@ export default async function MyLogsPage({ searchParams }: PageProps) {
   const myLogs: WorkTraceLog[] = result.items.map((log) => ({ ...log, authorName: person?.name ?? user.name, authorEmail: person?.email ?? user.email }));
 
   return <ConsolePageFrame title="我的工作轨迹" activePath="/console/my-logs" compactViewport><div className="wt-compact-page wt-log-page">
+    <ResumeWorkLogEdit key={user.id} userId={user.id} />
     <MobiusSyncNotice {...params} status={params.mobius} />
     <TimeOffSyncNotice status={params.timeOff} reason={params.timeOffReason} />
     <div className="wt-page-actions wt-my-logs-actions">

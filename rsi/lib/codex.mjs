@@ -9,12 +9,14 @@ const string={type:'string'};
 const object=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
 export const schemas={
  user:object({summary:string,feedbackSubmitted:{type:'boolean'},feedbackTitle:string,feedbackDescription:string,evidenceFiles:{type:'array',items:string}}),
- triage:object({decision:{type:'string',enum:['IMPLEMENT','ESCALATE','DUPLICATE']},summary:string,scopeFiles:{type:'array',items:string},acceptance:{type:'array',items:string},duplicateOf:string}),
- developer:object({summary:string,blockedReason:string,files:{type:'array',items:string}}),
- reviewer:object({verdict:{type:'string',enum:['Approve','Request changes','Escalate']},sourceSha:string,summary:string,findings:{type:'array',items:object({file:string,line:{type:'integer'},problem:string,requestedChange:string})}}),
- qa:object({passed:{type:'boolean'},failureKind:{type:'string',enum:['none','product','tooling']},summary:string,checks:{type:'array',items:object({name:string,passed:{type:'boolean'},evidence:string})},observations:{type:'array',items:object({summary:string,evidence:string})}})
+ triage:object({decision:{type:'string',enum:['IMPLEMENT','ESCALATE','DUPLICATE']},escalationReason:{type:'string',enum:['NONE','SAFETY','SCOPE','CLARIFICATION','CONTEXT','HANDLING_MODE','DUPLICATE']},summary:string,scopeFiles:{type:'array',items:string},acceptance:{type:'array',items:string},duplicateOf:string,contextFiles:{type:'array',items:string}}),
+ scope:object({decision:{type:'string',enum:['APPROVE','ESCALATE']},summary:string,scopeFiles:{type:'array',items:string},acceptance:{type:'array',items:string},alignment:string}),
+ developer:object({summary:string,blockedReason:string,files:{type:'array',items:string},scopeRequest:object({requiredFiles:{type:'array',items:string},readOnlyFiles:{type:'array',items:string},reason:string})}),
+ reviewer:object({verdict:{type:'string',enum:['Approve','Request changes','Escalate']},sourceSha:string,summary:string,findings:{type:'array',items:object({file:string,line:{type:'integer'},problem:string,requestedChange:string})},validationRequests:{type:'array',items:string}}),
+ qa:object({passed:{type:'boolean'},failureKind:{type:'string',enum:['none','product','tooling']},summary:string,blockedCapabilities:{type:'array',items:string},checks:{type:'array',items:object({name:string,passed:{type:'boolean'},evidence:string})},observations:{type:'array',items:object({summary:string,evidence:string})}})
 };
 function codexEntry(config){if(config.codexEntry&&existsSync(config.codexEntry))return config.codexEntry;for(const directory of (process.env.PATH||process.env.Path||'').split(path.delimiter)){const candidate=path.join(directory,'node_modules/@openai/codex/bin/codex.js');if(existsSync(candidate))return candidate;}throw Error('找不到 Codex CLI。请安装 CLI 或设置 RSI_CODEX_ENTRY。');}
+function sourceWasWritten(directory){const trace=path.join(directory,'source-trace.jsonl');if(!existsSync(trace))return false;for(const line of readFileSync(trace,'utf8').split('\n'))try{const event=JSON.parse(line);if(event.action==='write'&&event.ok===true)return true;}catch{}return false;}
 export async function callAgent(config,store,options){
  const max=config.maxStageAttempts||3;
  for(let attempt=1;attempt<=max;attempt++){
@@ -38,7 +40,7 @@ async function callAttempt(config,store,{role,taskId=null,cwd,prompt,directory,b
  mkdirSync(directory,{recursive:true});
  const schemaFile=path.join(directory,'schema.json'),output=path.join(directory,'answer.json');
  writeFileSync(schemaFile,JSON.stringify(schemas[role],null,2));writeFileSync(path.join(directory,'prompt.txt'),prompt);
- const entry=codexEntry(config),effort=role==='developer'?(config.developerReasoningEffort||'high'):role==='reviewer'?(config.reviewerReasoningEffort||'high'):'medium';
+ const entry=codexEntry(config),effort=role==='developer'?(config.developerReasoningEffort||'high'):['reviewer','scope'].includes(role)?(config.reviewerReasoningEffort||'high'):'medium';
  const task=taskId?store.find(taskId):null;
  const metadata={directory,reasoningEffort:effort,repairCycle:task?.metadata.repairCycle||0,sourceSha:task?.metadata.sourceSha||null,...(role==='developer'?{repairRound,repairCharge:false}:{})};
  const runId=store.startRun(taskId,role,metadata,config.maxRepairRounds);store.event(taskId,'agent_started',`${role} 已开始独立会话`,{runId});
@@ -50,6 +52,6 @@ async function callAttempt(config,store,{role,taskId=null,cwd,prompt,directory,b
   if(result.code!==0){const failure=signal?.aborted?{kind:'interrupted',retryable:false,message:'Agent 已随服务停止，进度已保留。'}:agentFailure(result);const error=Error(failure.message);error.retryable=failure.retryable;error.failureKind=failure.kind;throw error;}
   let answer;try{answer=JSON.parse(readFileSync(output,'utf8'));if(!answer||typeof answer!=='object'||Array.isArray(answer)||schemas[role].required.some(key=>!(key in answer)))throw Error('Invalid answer');}catch{const error=Error('Agent 未返回符合要求的结果，已有改动保留，准备重试当前阶段。');error.retryable=true;error.failureKind='output';throw error;}
   if(browser){const trace=path.join(browser.evidenceDir,'trace.jsonl');if(!existsSync(trace)||!readFileSync(trace,'utf8').trim())throw Error('浏览器工具没有实际执行，不能把此轮记录为无问题。');}
-  store.finishRun(runId,'COMPLETED',{...metadata,repairCharge:role==='developer',answer});store.set('activeProcess',null);return browser?{...answer,_rsiEvidenceDir:browser.evidenceDir}:answer;
- }catch(error){let writes=false;const trace=path.join(directory,'source-trace.jsonl');if(source&&existsSync(trace))for(const line of readFileSync(trace,'utf8').split('\n'))try{const event=JSON.parse(line);if(event.action==='write'&&event.ok===true)writes=true;}catch{}store.finishRun(runId,'FAILED',{...metadata,repairCharge:role==='developer'&&writes,error:error.message,failureKind:error.failureKind||'execution',retryable:error.retryable===true});store.set('activeProcess',null);throw error;}
+  store.finishRun(runId,'COMPLETED',{...metadata,repairCharge:role==='developer'&&!!source&&sourceWasWritten(directory),answer});store.set('activeProcess',null);return browser?{...answer,_rsiEvidenceDir:browser.evidenceDir}:answer;
+ }catch(error){store.finishRun(runId,'FAILED',{...metadata,repairCharge:role==='developer'&&!!source&&sourceWasWritten(directory),error:error.message,failureKind:error.failureKind||'execution',retryable:error.retryable===true});store.set('activeProcess',null);throw error;}
 }

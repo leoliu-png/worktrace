@@ -33,7 +33,12 @@ export class AppManager{
   const child=spawn(process.execPath,[path.join(config.projectRoot,'node_modules/next/dist/bin/next'),dev?'dev':'start','--hostname','127.0.0.1','--port',String(port+1)],{cwd:root,env:{...appEnvironment(config,port,database),NODE_ENV:dev?'development':'production'},windowsHide:true,stdio:['ignore','pipe','pipe']});
   child.stdout.pipe(log,{end:false});child.stderr.pipe(log,{end:false});let exited=false;child.once('exit',()=>{exited=true;log.end();});
   const proxy=createServer(async(req,res)=>{
-   const login=localLoginResponse(req.url||'/',req.method,port);
+   let stageAcceptance;
+   if(name==='stage'&&((req.url||'/').startsWith('/_rsi/')||req.url==='/')){
+    const task=this.store.listTasks().find(task=>task.metadata.release===root);
+    stageAcceptance={title:task?.title,sourceSha:task?.metadata.sourceSha,consoleUrl:config.appUrl+'/console/admin/rsi',approvedRoles:task?['adminA','adminB'].filter(role=>this.store.approvals(task.id).some(approval=>approval.sourceSha===task.metadata.sourceSha&&approval.userId===this.users[role].id&&approval.decision==='approve')):[]};
+   }
+   const login=localLoginResponse(req.url||'/',req.method,port,{stageAcceptance});
    if(login){req.resume();res.writeHead(login.status,login.headers).end(login.body);return;}
    const role=fixtureRole(req.headers.cookie,port);
    // Re-encode on long-running services; synthetic sessions must not expire after day one.

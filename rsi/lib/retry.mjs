@@ -16,4 +16,4 @@ export function agentFailure(result){
  return {kind:'execution',retryable:false,message:`Agent 执行失败（${result.code}）。${message||'运行记录已保留。'}`};
 }
 export function callFailureLimit(config,task){return (config.maxInfrastructureFailures||6)+Math.min(1,task?.metadata.manualRetryCount||0)*(config.maxStageAttempts||3);}
-export function roleTimeout(config,role){return Math.min(config.agentTimeoutSeconds,role==='triage'?120:role==='reviewer'?240:role==='user'?360:role==='qa'?600:900)*1000;}
+export function roleTimeout(config,role){return Math.min(config.agentTimeoutSeconds,role==='triage'?120:role==='scope'?180:role==='reviewer'?240:role==='user'?360:role==='qa'?600:900)*1000;}

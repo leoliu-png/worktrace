@@ -7,6 +7,11 @@ export type FeedbackCategory = typeof feedbackCategories[number];
 export type FeedbackStatus = typeof feedbackStatuses[number];
 export const feedbackHandlingModes = ['AGENT', 'HUMAN'] as const;
 export type FeedbackHandlingMode = typeof feedbackHandlingModes[number];
+export const agentFeedbackStatus = (status: FeedbackStatus) => status !== 'COMPLETED';
+export function agentTaskInstructions(value: string) {
+  const text = value.trim();
+  return /^(?:已结束自动处理[，,；;\s]*(?:后续)?由人工处理|自动处理已结束[，,；;\s]*(?:后续)?由人工处理)[。.!！]?$/.test(text) ? '' : text;
+}
 
 export const feedbackInputSchema = z.object({
   category: z.enum(feedbackCategories, { error: 'category' }),
@@ -50,7 +55,7 @@ const errors: Record<string, readonly [string, string]> = {
   status: ['请选择有效的处理状态。', 'Choose a valid feedback status.'],
   handlingMode: ['请选择有效的处理方式。', 'Choose a valid handling mode.'],
   stale: ['反馈已更新，请刷新后重新操作。', 'Feedback has changed. Refresh and try again.'],
-  agent_note: ['再次交给 Agent 时，请填写至少 8 字的补充要求，并选择待处理或处理中。', 'To request another Agent pass, enter at least 8 characters of instructions and select Pending or In progress.'],
+  agent_note: ['已完成的反馈不再自动执行；如需继续，请先改为未完成状态并选择 Agent 处理。', 'Completed feedback does not run again. Choose an unfinished status and Agent handling to continue.'],
   reply: ['处理回复不能超过 3,000 字。', 'The reply must be no more than 3,000 characters.'],
   not_found: ['这条反馈不存在，请刷新页面。', 'This feedback no longer exists. Please refresh.'],
   save_failed: ['反馈保存失败，请稍后重试。', 'Could not save feedback. Please try again.'],

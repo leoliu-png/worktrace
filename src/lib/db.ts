@@ -5,7 +5,7 @@ import { workLogMarkdownContent } from './markdown-work-log';
 import { resolveReportDate, workTraceReportDate } from './report-date';
 import type { MobiusSyncResult, MobiusSyncRun, MobiusSyncSource } from './mobius-sync-result';
 import type { TimeOffConnection, TimeOffSource, TimeOffSyncResult, TimeOffSyncRun } from './time-off-types';
-import { feedbackInputSchema, feedbackReviewSchema, type Feedback, type FeedbackInput, type FeedbackReview, type FeedbackStatus } from './feedback';
+import { feedbackInputSchema, feedbackReviewSchema, agentFeedbackStatus, agentTaskInstructions, type Feedback, type FeedbackInput, type FeedbackReview, type FeedbackStatus } from './feedback';
 
 type LocalDatabase = Database.Database;
 export type LocalUser = { id: string; email: string; name: string; role: 'ADMIN' | 'MEMBER' };
@@ -193,12 +193,13 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
         // A retried acceptance request must not create another repair cycle or overwrite a later handoff.
         if (parsed.requestAgent && parsed.agentRequestKey && requestKey === parsed.agentRequestKey) return current;
         if (parsed.expectedAgentRevision !== undefined && parsed.expectedAgentRevision !== current.agentRevision) throw new Error('Feedback has changed');
-        if (parsed.agentOnly && (current.handlingMode === 'HUMAN' || !['OPEN', 'IN_PROGRESS'].includes(current.status))) throw new Error('Feedback has changed');
+        if (parsed.agentOnly && (current.handlingMode === 'HUMAN' || !agentFeedbackStatus(current.status))) throw new Error('Feedback has changed');
         const handlingMode = parsed.handlingMode ?? current.handlingMode;
         const handBack = handlingMode === 'AGENT' && current.handlingMode === 'HUMAN';
         const requestAgent = parsed.requestAgent || handBack;
-        const agentInstructions = parsed.agentInstructions ?? current.agentInstructions;
-        if (requestAgent && (handlingMode !== 'AGENT' || !['OPEN', 'IN_PROGRESS'].includes(parsed.status) || agentInstructions.trim().length < 8)) throw new Error('Agent instructions are required');
+        const instructions = parsed.agentInstructions ?? current.agentInstructions;
+        const agentInstructions = handlingMode === 'AGENT' ? agentTaskInstructions(instructions) : instructions;
+        if (requestAgent && (handlingMode !== 'AGENT' || !agentFeedbackStatus(parsed.status))) throw new Error('Agent instructions are required');
         const agentRevision = current.agentRevision + (requestAgent ? 1 : 0);
         const updatedAt = new Date().toISOString();
         sqlite.prepare('UPDATE feedback SET status = ?, reply = ?, handling_mode = ?, agent_revision = ?, agent_instructions = ?, agent_request_key = ?, reviewed_by = ?, updated_at = ? WHERE id = ?')

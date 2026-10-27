@@ -2,8 +2,7 @@ export function taskPolicy(task,used,limit=3){
  const remaining=Math.max(0,limit-used),manualRetries=task.metadata.manualRetryCount||0,canContinue=canContinueTask(task,used,limit);
  let retryDisabledReason='';
  if(!['ESCALATED','REJECTED'].includes(task.state))retryDisabledReason='当前任务不需要人工恢复。';
- else if(task.metadata.handlingMode==='HUMAN')retryDisabledReason='此反馈已标记人工处理。如需 Agent 继续，请在反馈管理中切换为 Agent 处理，并补充具体要求。';
- else if(task.metadata.duplicateOf)retryDisabledReason='重复反馈已归入原任务，不再重复执行。';
+ else if(task.metadata.handlingMode==='HUMAN')retryDisabledReason='此反馈已标记人工处理。如需 Agent 继续，请在反馈管理中切换为 Agent 处理；补充要求可不填。';
  else if(!canContinue)retryDisabledReason=`有效代码修复已达到 ${limit} 轮上限，需人工处理；连接失败不占修复轮次。`;
  else if(manualRetries>=1)retryDisabledReason='已使用一次人工恢复机会，仍未解决的问题需人工处理。';
  return {used,limit,remaining,manualRetries,canContinue,retryAllowed:!retryDisabledReason,retryDisabledReason,canClose:['ESCALATED','REJECTED'].includes(task.state)};
