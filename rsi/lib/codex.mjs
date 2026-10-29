@@ -8,7 +8,7 @@ import {roleTimeout,agentFailure,callFailureLimit} from './retry.mjs';
 const string={type:'string'};
 const object=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
 export const schemas={
- user:object({summary:string,feedbackSubmitted:{type:'boolean'},feedbackTitle:string,feedbackDescription:string,evidenceFiles:{type:'array',items:string}}),
+ user:object({outcome:{type:'string',enum:['completed','blocked']},blockedReason:string,summary:string,feedbackSubmitted:{type:'boolean'},feedbackTitle:string,feedbackDescription:string,evidenceFiles:{type:'array',items:string}}),
  triage:object({decision:{type:'string',enum:['IMPLEMENT','ESCALATE','DUPLICATE']},escalationReason:{type:'string',enum:['NONE','SAFETY','SCOPE','CLARIFICATION','CONTEXT','HANDLING_MODE','DUPLICATE']},summary:string,scopeFiles:{type:'array',items:string},acceptance:{type:'array',items:string},duplicateOf:string,contextFiles:{type:'array',items:string}}),
  scope:object({decision:{type:'string',enum:['APPROVE','ESCALATE']},summary:string,scopeFiles:{type:'array',items:string},acceptance:{type:'array',items:string},alignment:string}),
  developer:object({summary:string,blockedReason:string,files:{type:'array',items:string},scopeRequest:object({requiredFiles:{type:'array',items:string},readOnlyFiles:{type:'array',items:string},reason:string})}),

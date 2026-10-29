@@ -8,6 +8,7 @@ import {z} from 'zod';
 import {installStorageFailure,applyFixture} from '../lib/browser-fixtures.mjs';
 import {fixtureCookieName} from '../lib/local-login.mjs';
 import {qaCapabilities,qaToolVersion} from '../lib/qa-capabilities.mjs';
+import {browserNavigationAllowed} from '../lib/browser-policy.mjs';
 const settings=JSON.parse(readFileSync(process.argv[2],'utf8'));
 const origin=new URL(settings.url).origin;
 if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(origin))throw Error('Only the configured local app is allowed.');
@@ -59,8 +60,7 @@ await context.addInitScript(()=>{
 await context.route('**/*',async route=>{
  try{
   const request=route.request(),url=new URL(request.url()),navigation=request.isNavigationRequest();
-  const navigationAllowed=!navigation||/^\/(?:console(?:\/(?:logs(?:\/[^?#]*)?|my-logs|feedback))?)?\/?$/.test(url.pathname);
-  const allowed=url.origin===origin&&navigationAllowed&&!url.pathname.startsWith('/console/admin')&&!url.pathname.startsWith('/_rsi/');
+  const allowed=navigation?browserNavigationAllowed(url,origin,request.method()):url.origin===origin&&!url.pathname.startsWith('/console/admin')&&!url.pathname.startsWith('/_rsi/');
   if(navigation)navigationAttempt({method:'navigation',url:url.href.slice(0,2000),blocked:!allowed,external:url.origin!==origin,phase:allowed?'allowed_local':'blocked_by_local_policy'});
   if(allowed){
    const feedbackPost=request.method()==='POST'&&url.pathname==='/console/feedback';
@@ -97,8 +97,16 @@ server.registerTool('browser_action',{description:'Local synthetic WorkTrace UI 
  try{
   if(['click','fill','paste','paste_image','select','press'].includes(args.action)){
    if(!args.role||!args.name)throw Error('Use a role and name from a fresh snapshot.');
-   if(/删除|吊销|成员管理|权限|账户|退出|授权|delete|revoke|permission|account|sign out/i.test(args.name))throw Error('This action is outside the local experience scope.');
    let target=page.getByRole(args.role,{name:args.name,exact:true});if(args.index!==undefined)target=target.nth(args.index);
+   if(/删除|吊销|成员管理|权限|账户|退出|授权|delete|revoke|permission|account|sign out/i.test(args.name)){
+    // A member-login link may describe permission isolation, but the exact
+    // destination must still be one of the two fixed local member routes.
+    let memberLink=false;
+    if(args.action==='click'&&args.role==='link'&&new URL(page.url()).pathname==='/_rsi/login'){
+     const href=await target.getAttribute('href');if(href){const url=new URL(href,origin);memberLink=/^\/_rsi\/login\/(?:member|member-b)\/?$/.test(url.pathname)&&browserNavigationAllowed(url,origin);}
+    }
+    if(!memberLink)throw Error('This action is outside the local experience scope.');
+   }
    if(settings.testFixtures===true&&settings.maySubmitFeedback===false&&new URL(page.url()).pathname==='/console/feedback'&&['click','press'].includes(args.action)&&args.role==='button')throw Error('Feedback submission is outside this ticket test plan. Record unrelated findings separately.');
    if(args.action==='click')await target.click();
    if(args.action==='fill')await target.fill(args.value??'');
@@ -123,12 +131,12 @@ server.registerTool('browser_action',{description:'Local synthetic WorkTrace UI 
    if(args.action==='press'){if(!['Enter','Tab','Escape','ArrowDown','ArrowUp','Control+Enter','Control+A','Backspace'].includes(args.value))throw Error('Unsupported key.');await target.press(args.value);}
   }
   if(args.action==='navigate'){
-   const url=new URL(args.url||'',origin);if(url.origin!==origin||!/^\/(?:console(?:\/(?:logs(?:\/[^?#]*)?|my-logs|feedback))?)?\/?$/.test(url.pathname))throw Error('Navigation outside local product scope.');
+   if(!args.url)throw Error('Provide the local URL in the url field.');const url=new URL(args.url,origin);if(!browserNavigationAllowed(url,origin))throw Error('Navigation outside local product scope.');
    await page.goto(url.href,{waitUntil:'domcontentloaded'});
   }
   if(args.action==='reload')await page.reload({waitUntil:'domcontentloaded'});
   if(args.action==='reopen'){const url=page.url();await page.close();page=await context.newPage();page.setDefaultTimeout(10000);observe(page);await page.goto(url,{waitUntil:'domcontentloaded'});}
-  if(args.action==='test_account'){if(!['member','memberB'].includes(args.value))throw Error('Only synthetic ordinary members are available.');await context.addCookies([{name:fixtureCookieName(Number(new URL(origin).port)),value:args.value,url:origin,httpOnly:true,sameSite:'Strict'}]);await page.reload({waitUntil:'domcontentloaded'});}
+  if(args.action==='test_account'){if(!['member','memberB'].includes(args.value))throw Error('Only synthetic ordinary members are available.');await context.addCookies([{name:fixtureCookieName(Number(new URL(origin).port)),value:args.value,url:origin,httpOnly:true,sameSite:'Strict'}]);let current;try{current=new URL(page.url());}catch{}if(current&&current.origin===origin&&/^\/console(?:\/|$)/.test(current.pathname)&&browserNavigationAllowed(current,origin))await page.reload({waitUntil:'domcontentloaded'});else await page.goto(new URL('/console',origin).href,{waitUntil:'domcontentloaded'});}
   if(args.action==='test_fixture'){if(settings.testFixtures!==true)throw Error('Failure fixtures are available only in the isolated QA stage.');if(!settings.fixtureModes?.includes(args.value))throw Error('This fixture is not in the approved ticket test plan. Do not mark the product failed or expand scope.');item.fixture=await applyFixture({context,page,origin,mode:args.value,setPostFailure:value=>{failPosts=value;},setLogSaveFailure:value=>{failLogSaves=value;},setSubmissionHold});}
   if(args.action==='screenshot'){
    if(++shots>30)throw Error('Screenshot budget reached.');
