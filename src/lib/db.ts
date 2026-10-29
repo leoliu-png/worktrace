@@ -137,7 +137,8 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     const existing = sqlite.prepare('SELECT * FROM work_logs WHERE author_id = ? AND report_date = ? ORDER BY updated_at DESC, id DESC LIMIT 1').get(authorId, reportDate) as any;
     if (existing) {
       const current = asWorkLog(existing);
-      const log: LocalWorkLog = { ...current, reportDate, title: input.title, completed: input.completed, inProgress: input.inProgress ?? '', blockers: input.blockers ?? '', nextPlan: input.nextPlan ?? '', markdownContent: workLogMarkdownContent(input), updatedAt: now.toISOString() };
+      const updatedAt = new Date(Math.max(now.getTime(), Date.parse(current.updatedAt) + 1)).toISOString();
+      const log: LocalWorkLog = { ...current, reportDate, title: input.title, completed: input.completed, inProgress: input.inProgress ?? '', blockers: input.blockers ?? '', nextPlan: input.nextPlan ?? '', markdownContent: workLogMarkdownContent(input), updatedAt };
       sqlite.prepare('UPDATE work_logs SET title = ?, completed = ?, in_progress = ?, blockers = ?, next_plan = ?, markdown_content = ?, updated_at = ? WHERE id = ?').run(log.title, JSON.stringify(log.completed), log.inProgress, log.blockers, log.nextPlan, log.markdownContent, log.updatedAt, log.id);
       writeAuditEvent(authorId, 'WORK_LOG_UPDATED', 'WORK_LOG', log.id);
       return { log, created: false };
@@ -227,8 +228,10 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     finishTimeOffSyncRun(id: string, result: TimeOffSyncResult): void {
       sqlite.prepare('UPDATE time_off_sync_runs SET status = ?, finished_at = ?, result_json = ? WHERE id = ?').run(result.status, new Date().toISOString(), JSON.stringify(result), id);
     },
-    listTimeOffSyncRuns(userId: string): TimeOffSyncRun[] {
-      const rows = sqlite.prepare('SELECT runs.* FROM time_off_sync_runs runs JOIN work_logs ON work_logs.id = runs.work_log_id WHERE work_logs.author_id = ? ORDER BY runs.created_at DESC, runs.id DESC LIMIT 25').all(userId) as any[];
+    listTimeOffSyncRuns(userId: string, options: { workLogId?: string } = {}): TimeOffSyncRun[] {
+      const rows = options.workLogId
+        ? sqlite.prepare('SELECT runs.* FROM time_off_sync_runs runs JOIN work_logs ON work_logs.id = runs.work_log_id WHERE work_logs.author_id = ? AND runs.work_log_id = ? ORDER BY runs.created_at DESC, runs.id DESC LIMIT 25').all(userId, options.workLogId) as any[]
+        : sqlite.prepare('SELECT runs.* FROM time_off_sync_runs runs JOIN work_logs ON work_logs.id = runs.work_log_id WHERE work_logs.author_id = ? ORDER BY runs.created_at DESC, runs.id DESC LIMIT 25').all(userId) as any[];
       return rows.map((row) => ({ id: row.id, workLogId: row.work_log_id, logTitle: row.log_title, reportDate: row.report_date, source: row.source, status: row.status, createdAt: row.created_at, finishedAt: row.finished_at, result: row.result_json ? JSON.parse(row.result_json) : null }));
     },
     startMobiusSyncRun(log: Pick<LocalWorkLog, 'id' | 'title' | 'reportDate'>, source: MobiusSyncSource, now = new Date()): string {
@@ -353,6 +356,13 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
         return result;
       })();
     },
+    getWorkLogRequest(authorId: string, key: string): LocalWorkLog | undefined {
+      const row = sqlite.prepare('SELECT work_logs.* FROM work_log_requests JOIN work_logs ON work_logs.id = work_log_requests.work_log_id WHERE work_log_requests.author_id = ? AND work_log_requests.idempotency_key = ?').get(authorId, key) as any;
+      return row ? asWorkLog(row) : undefined;
+    },
+    recordWorkLogRequest(authorId: string, key: string, workLogId: string): void {
+      sqlite.prepare('INSERT INTO work_log_requests (author_id, idempotency_key, work_log_id) VALUES (?, ?, ?)').run(authorId, key, workLogId);
+    },
     getWorkLog(id: string): LocalWorkLog | undefined {
       const row = sqlite.prepare('SELECT * FROM work_logs WHERE id = ?').get(id) as any;
       return row ? asWorkLog(row) : undefined;
@@ -409,7 +419,8 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
       const current = this.getWorkLog(id);
       if (!current) throw new Error('Work log was not found');
       if (current.authorId !== actorId && actorRole !== 'ADMIN') throw new Error('You are not allowed to update this work log');
-      const updated: LocalWorkLog = { ...current, title: input.title, completed: input.completed, inProgress: input.inProgress ?? '', blockers: input.blockers ?? '', nextPlan: input.nextPlan ?? '', markdownContent: workLogMarkdownContent(input), updatedAt: new Date().toISOString() };
+      const updatedAt = new Date(Math.max(Date.now(), Date.parse(current.updatedAt) + 1)).toISOString();
+      const updated: LocalWorkLog = { ...current, title: input.title, completed: input.completed, inProgress: input.inProgress ?? '', blockers: input.blockers ?? '', nextPlan: input.nextPlan ?? '', markdownContent: workLogMarkdownContent(input), updatedAt };
       sqlite.prepare('UPDATE work_logs SET title = ?, completed = ?, in_progress = ?, blockers = ?, next_plan = ?, markdown_content = ?, updated_at = ? WHERE id = ?').run(updated.title, JSON.stringify(updated.completed), updated.inProgress, updated.blockers, updated.nextPlan, updated.markdownContent, updated.updatedAt, id);
       writeAuditEvent(actorId, 'WORK_LOG_UPDATED', 'WORK_LOG', id);
       return updated;

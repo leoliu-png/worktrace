@@ -116,7 +116,14 @@ MCP 服务位于 `/mcp`，与 REST API 使用同一个个人 API Key：
 }
 ```
 
-可用工具包括：`prepare_work_log`、`create_work_log`、`update_work_log`、`list_work_logs`、`get_work_log` 和 `get_daily_submission_status`。
+可用工具包括：`prepare_work_log`、`create_work_log`、`update_work_log`、`list_work_logs`、`get_work_log`、`get_daily_submission_status`、`get_work_log_sync_status`、`append_work_log`、`submit_markdown_work_log` 和 `create_feedback`。管理员还可使用 `list_feedback` 和 `get_rsi_status`。
+
+- `get_work_log_sync_status` 按 `id` 或 `reportDate` 查询当前账号的最新 Mobius 和 Time off 同步记录；不传日期默认为上海时间当天。结果包括实际评论、跳过和失败原因，空值表示没有记录，不会触发新的同步。
+- `append_work_log` 在现有日志的 `completed`、`inProgress`、`blockers` 或 `nextPlan` 章节追加一条工作，默认追加到 `completed`，保留嵌套内容。支持 `id` 或 `reportDate`，更新与查询在数据库事务中完成；可提供 `expectedUpdatedAt` 检测旧版本，并通过唯一的 `idempotencyKey` 安全重试同一追加。完成后走现有同步流程。
+- `submit_markdown_work_log` 接收完整 `markdown` 和可选 `reportDate`。新日期直接保存；已有日志时需要先读取日志，将返回的 `updatedAt` 作为 `expectedUpdatedAt` 传入以确认替换。正文限 50,000 字符，保留 Markdown 结构；支持已有图片 URL，但不上传本地图片，`blob:`、`data:`、`file:` 图片地址会被拒绝。保存后走现有同步流程。
+- `create_feedback` 允许成员提交自己的建议反馈，类别为 `SUGGESTION`、`BUG`、`EXPERIENCE` 或 `OTHER`，返回创建结果；与网页提交进入同一反馈管理流程。
+- `list_feedback` 仅管理员可用，可按 `OPEN`、`IN_PROGRESS`、`COMPLETED` 或 `DECLINED` 筛选，并支持分页，返回反馈和处理信息。
+- `get_rsi_status` 仅管理员可用，读取自动优化的当前状态、任务和近期运行记录。自动优化目前为本地服务；未配置或服务未运行时返回错误，不会启动或操作任务。
 
 Agent Skill 可从以下地址读取：
 
