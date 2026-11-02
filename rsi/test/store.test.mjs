@@ -18,4 +18,27 @@ test('call budget counts every role, and completion is durable',()=>{const store
 test('restart recovers interrupted runs without erasing history or an active process',()=>{const store=fixture();try{const orphan=store.startRun(null,'user',{directory:'evidence'}),live=store.startRun(null,'reviewer');store.set('enabled',false);assert.equal(store.recoverRuns(live).length,1);assert.equal(store.status().runs.find(r=>r.id===orphan).state,'FAILED');assert.equal(store.status().runs.find(r=>r.id===orphan).metadata.directory,'evidence');assert.equal(store.status().runs.find(r=>r.id===live).state,'RUNNING');assert.equal(store.countRunsToday(),2);assert.equal(store.get('enabled'),false);assert.equal(store.recoverRuns(live).length,0);}finally{store.close();}});
 test('approved paths cannot escape into credentials, control plane or integrations',()=>{assert.equal(allowedPath('src/components/feedback-form.tsx',['src/components/feedback-form.tsx']),true);assert.equal(allowedPath('src/components/feedback-form.test.ts',['src/components/feedback-form.tsx']),true);for(const file of ['../.env','rsi/bin/service.mjs','src/lib/db.ts','src/lib/mobius-sync.ts','.github/workflows/ci.yml','package.json','src/auth.ts'])assert.equal(allowedPath(file,[file]),false);});
 test('runtime rejects duplicate ports and unbounded retry/call settings',()=>{assert.throws(()=>validateSettings({...defaultSettings,stagePort:defaultSettings.appPort}));assert.throws(()=>validateSettings({...defaultSettings,maxRepairRounds:100}));assert.throws(()=>validateSettings({...defaultSettings,maxAgentRunsPerDay:0}));assert.equal(validateSettings(defaultSettings).maxRepairRounds,5);});
+test('historical repair totals do not limit a new repair cycle',()=>{
+ const store=fixture();try{
+  const task=store.enqueue(feedback);
+  for(let cycle=0;cycle<4;cycle++){
+   store.transition(task.id,'DEVELOPING',{repairCycle:cycle});
+   for(let round=1;round<=5;round++){
+    const id=store.startRun(task.id,'developer',{repairRound:round},5);
+    store.finishRun(id,'COMPLETED',{repairCycle:cycle,repairRound:round,repairCharge:true});
+   }
+   assert.equal(store.repairRoundsUsed(task.id),5);
+   assert.throws(()=>store.startRun(task.id,'developer',{repairRound:6},5),/上限/);
+  }
+  store.transition(task.id,'ESCALATED',{handlingMode:'HUMAN',feedbackStatus:'IN_PROGRESS',feedbackRevision:3});
+  const resumed=store.syncFeedback({...feedback,status:'IN_PROGRESS',handlingMode:'AGENT',agentRevision:4,agentInstructions:'继续处理原反馈'});
+  assert.equal(resumed.state,'QUEUED');assert.equal(resumed.metadata.repairCycle,4);
+  assert.equal(store.repairStats(task.id).totalUsed,20);
+  assert.equal(store.repairRoundsUsed(task.id),0);
+  const id=store.startRun(task.id,'developer',{repairRound:1},5);
+  store.finishRun(id,'COMPLETED',{repairCycle:4,repairRound:1,repairCharge:true});
+  assert.equal(store.repairStats(task.id).totalUsed,21);
+  assert.equal(store.repairRoundsUsed(task.id),1);
+ }finally{store.close();}
+});
 test('obvious host execution and destructive changes are rejected before CI',()=>{assert.ok(unsafeDiffReason("+import {rmSync} from 'node:fs';"));assert.ok(unsafeDiffReason('+eval(input)'));assert.ok(unsafeDiffReason('+const key = process.env.SECRET'));assert.equal(unsafeDiffReason('+const title = event.target.value;'),null);});

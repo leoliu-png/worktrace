@@ -8,13 +8,14 @@ import {appDatabase} from './local-app.mjs';
 import {checkCandidate,buildFingerprint,checkFailureLogs} from './checks.mjs';
 import {taskFailureAction,callFailureLimit} from './retry.mjs';
 import {canContinueTask} from './task-policy.mjs';
-import {qaPlan} from './task-memory.mjs';
+import {qaPlan,missingQaCapabilities,developerChecklist,qaVerificationKey} from './task-memory.mjs';
 import {agentEligibleFeedback,unfinishedFeedbackStatuses,nonBlockingTriageDecision} from './feedback-policy.mjs';
-import {automatableScope,validScopePlan as validPlan,planningContext} from './scope-policy.mjs';
+import {automatableScope,validScopePlan as validPlan,planningContext,missingSavedScope} from './scope-policy.mjs';
 import {recordLocalUpdate,localUpdateActive} from './local-update.mjs';
 import {qaToolVersion} from './qa-capabilities.mjs';
 import {sourceAccess} from './source-access.mjs';
 import {recordSweepResult} from './sweep-result.mjs';
+import {browserQaDisposition,recoverableToolingResult} from './qa-disposition.mjs';
 const json=(filename,value)=>writeFileSync(filename,JSON.stringify(value,null,2));
 export class Pipeline{
  constructor(config,store,apps,users){Object.assign(this,{config,store,apps,users});this.abort=new AbortController();}
@@ -104,6 +105,20 @@ export class Pipeline{
   }
   if(!validPlan(scope,acceptance,config))throw Error('反馈范围或验收要求不合法，需人工确认。');
   task=store.transition(task.id,'TRIAGING',{scopeFiles:scope,acceptance});
+  // A new feedback cycle may narrow its plan while retaining an older candidate.
+  // Ask the independent scope reviewer to reconcile every saved change before
+  // resuming development or moving it to a new baseline.
+  if(task.metadata.worktree&&task.metadata.baseSha&&existsSync(task.metadata.worktree)){
+   const previous=realpathSync(task.metadata.worktree),root=realpathSync(path.join(config.home,'worktrees'));
+   if(!previous.startsWith(root+path.sep))throw Error('保存的任务目录不在本地运行范围内。');
+   const saved=(await git(config,['diff','--name-only',task.metadata.baseSha,'HEAD'],previous)).split('\n').filter(Boolean);
+   const missing=missingSavedScope(saved,scope);
+   if(missing.length){
+    store.event(task.id,'saved_scope_preflight','历史候选包含当前范围外的文件，先独立复核，保留原代码。',{files:missing});
+    task=await this.reviewTaskScope(task,{requiredFiles:missing,reason:'新周期保留的候选代码包含当前范围外的文件，请按原始反馈独立核对完整累计改动。'},directory);
+    if(!task)return null;scope=task.metadata.scopeFiles;acceptance=task.metadata.acceptance;
+   }
+  }
   if(!task.metadata.scopePreflightComplete){
    const context=planningContext(contextRoot,task);
    if(context.dependenciesOutsideScope.length){task=await this.reviewTaskScope(task,{requiredFiles:context.dependenciesOutsideScope,reason:'页面或表单引用了批准范围外的产品组件，请核对实现原始需求所需的最小文件范围。'},directory);if(!task)return null;scope=task.metadata.scopeFiles;acceptance=task.metadata.acceptance;}
@@ -156,7 +171,8 @@ export class Pipeline{
     const roundDir=path.join(directory,`attempt-${task.metadata.retryAttempt||0}`,`round-${round}`);mkdirSync(roundDir,{recursive:true});
     if(task.metadata.resumeStage==='DEVELOPING'){
      task=store.transition(task.id,'DEVELOPING',{round,resumeRound:round,repairPending:true,reason:`正在进行第 ${round}/${config.maxRepairRounds} 轮代码修复；连接故障单独重试。`});
-     const implementation=await this.taskAgent(task,{role:'developer',taskId:task.id,repairRound:round,cwd:worktree,directory:path.join(roundDir,'developer'),prompt:developerPrompt(task,findings),source:{root:worktree,scope:task.metadata.scopeFiles},signal:this.abort.signal});
+     const checklist=developerChecklist(task,findings);
+     const implementation=await this.taskAgent(task,{role:'developer',taskId:task.id,repairRound:round,cwd:worktree,directory:path.join(roundDir,'developer'),prompt:developerPrompt(task,findings)+'\n<coordinator_checklist>'+JSON.stringify(checklist)+'</coordinator_checklist>\nBefore returning, review each listed in-scope requirement and earlier finding against the code and add focused regression tests where feasible. Report actual verification only; the coordinator will run all tests.',source:{root:worktree,scope:task.metadata.scopeFiles},signal:this.abort.signal});
      await this.ensureEligible(task);
      const changed=await git(config,['status','--porcelain','-uall'],worktree);
      if(implementation.scopeRequest?.readOnlyFiles?.length){
@@ -190,6 +206,18 @@ export class Pipeline{
     }
     const candidate={sourceSha:task.metadata.sourceSha,files:task.metadata.files,diff:await git(config,['diff','--no-ext-diff','--unified=3',baseSha,task.metadata.sourceSha],worktree)};
     if(await git(config,['rev-parse','HEAD'],worktree)!==candidate.sourceSha||await git(config,['status','--porcelain'],worktree))throw Error('保存的候选代码版本已改变，禁止继续检查或部署。');
+    const completeDiff=candidate.diff;
+    const allFiles=(await git(config,['diff','--name-only',baseSha,candidate.sourceSha],worktree)).split('\n').filter(Boolean);
+    const changeKinds=await git(config,['diff','--name-status',baseSha,candidate.sourceSha],worktree);
+    if(allFiles.length>config.maxChangedFiles||Buffer.byteLength(completeDiff)>config.maxDiffBytes||/(?:^|\n)[DR]/.test(changeKinds)||/(?:new file|new) mode 120000/.test(completeDiff)||unsafeDiffReason(completeDiff)||/(?:wtk_|fmtopat_|mob_)[a-zA-Z0-9_-]{15,}|sk-[a-zA-Z0-9_-]{20,}/.test(completeDiff))throw Error('累计变更超出规模限制或存在安全风险，已转人工。');
+    const scopeMissing=missingSavedScope(allFiles,task.metadata.scopeFiles);
+    if(scopeMissing.length){
+     store.event(task.id,'candidate_scope_preflight','候选文件需先完成独立范围复核，再运行代码检查。',{files:scopeMissing});
+     task=await this.reviewTaskScope(task,{requiredFiles:scopeMissing,reason:'候选版本的累计改动包含当前范围外的文件，请按原始反馈核对全部改动。'},directory);
+     if(!task)return;
+     if(allFiles.some(file=>!allowedPath(file,task.metadata.scopeFiles)))throw Error('独立范围复核未覆盖候选全部文件。');
+     task=store.transition(task.id,'VERIFYING',{resumeStage:'VERIFYING',reason:'候选范围已通过独立复核，继续代码检查。'});
+    }
     const draft={kind:'LOCAL_PR_DRAFT',remotePrCreated:false,state:'VERIFYING',feedbackId:task.feedbackId,title:task.title,baseSha,sourceSha:candidate.sourceSha,files:candidate.files};json(path.join(roundDir,'local-pr.json'),draft);json(path.join(directory,'local-pr.json'),draft);writeFileSync(path.join(roundDir,'candidate.patch'),candidate.diff);writeFileSync(path.join(directory,'candidate.patch'),await git(config,['diff','--no-ext-diff','--unified=3',baseSha,candidate.sourceSha],worktree));
     let checks=task.metadata.checks;
     let reusable=checks?.passed&&checks.sourceSha===candidate.sourceSha&&existsSync(path.join(worktree,'.next/BUILD_ID'));
@@ -207,8 +235,6 @@ export class Pipeline{
      task=store.transition(task.id,'VERIFYING',{findings,resumeStage:'DEVELOPING',resumeRound:nextRound,repairPending:false,reason:'代码检查未通过，下一轮只修复实际失败项。'});round=nextRound-1;continue;
     }
     if(checks.tests.total<store.get('baselineChecks').tests.total)throw Error('测试数量低于基线，需人工判断。');
-    const completeDiff=await git(config,['diff','--no-ext-diff','--unified=3',baseSha,candidate.sourceSha],worktree);
-    const allFiles=(await git(config,['diff','--name-only',baseSha,candidate.sourceSha],worktree)).split('\n').filter(Boolean);
     if(allFiles.length>config.maxChangedFiles||Buffer.byteLength(completeDiff)>config.maxDiffBytes||allFiles.some(file=>!allowedPath(file,task.metadata.scopeFiles)))throw Error('累计变更超出范围或规模限制，已转人工。');
     let review=task.metadata.review;
     if(review?.verdict!=='Approve'||review.sourceSha!==candidate.sourceSha){
@@ -226,40 +252,71 @@ export class Pipeline{
     if(await git(config,['rev-parse','HEAD'],worktree)!==candidate.sourceSha||await git(config,['status','--porcelain'],worktree)||checks.artifactHash!==buildFingerprint(worktree))throw Error('评审后的代码或构建产物发生变化，禁止部署。');
     task=store.transition(task.id,'STAGING',{resumeStage:'STAGING'});
     await this.ensureEligible(task);
-    const release=await this.release(worktree,candidate.sourceSha,checks.artifactHash);await this.apps.start('stage',release);
     const plan=qaPlan(task);
-    const verificationKey=createHash('sha256').update(JSON.stringify({sha:candidate.sourceSha,tool:qaToolVersion,acceptance:plan.acceptance,requests:plan.validationRequests,fixtures:plan.permittedFixtures})).digest('hex');
+    const missingCapabilities=missingQaCapabilities(plan);
+    const release=await this.release(worktree,candidate.sourceSha,checks.artifactHash);await this.apps.start('stage',release);
+    const verificationKey=qaVerificationKey(candidate.sourceSha,plan);
     if(task.metadata.verificationKey!==verificationKey){
      task=store.transition(task.id,'STAGING',{verificationKey,verificationAttempts:0,qaProgress:null,verificationHistory:[...(task.metadata.verificationHistory||[]),...(task.metadata.verificationKey?[{key:task.metadata.verificationKey,attempts:task.metadata.verificationAttempts||0,at:new Date().toISOString()}]:[])]});
      store.event(task.id,'qa_capabilities_ready','已按当前验收计划准备验证能力，工具版本或验收要求变化后只重新计算验证额度，原开发轮次与历史证据保留。',{toolVersion:qaToolVersion,fixtures:plan.permittedFixtures,imagePasteAllowed:plan.imagePasteAllowed});
     }
-    const qa=await this.taskAgent(task,{role:'qa',taskId:task.id,cwd:config.projectRoot,directory:path.join(roundDir,'qa'),prompt:qaPrompt(task,config.stageUrl),browser:{url:config.stageUrl,channel:config.browserChannel,evidenceDir:path.join(roundDir,'qa/browser'),testFixtures:true,fixtureModes:plan.permittedFixtures,maySubmitFeedback:plan.maySubmitFeedback,imagePasteAllowed:plan.imagePasteAllowed},signal:this.abort.signal});
+    let qa;
+    if(missingCapabilities.length){
+     qa={passed:false,failureKind:'tooling',summary:`浏览器验证工具缺少必要能力：${missingCapabilities.join('、')}，需真人检查相关验收要求。`,checks:[],observations:[],blockedCapabilities:missingCapabilities};
+     store.event(task.id,'qa_capability_blocked',qa.summary,{missingCapabilities,sourceSha:candidate.sourceSha});
+    }else{
+     qa=await this.taskAgent(task,{role:'qa',taskId:task.id,cwd:config.projectRoot,directory:path.join(roundDir,'qa'),prompt:qaPrompt(task,config.stageUrl),browser:{url:config.stageUrl,channel:config.browserChannel,evidenceDir:path.join(roundDir,'qa/browser'),testFixtures:true,fixtureModes:plan.permittedFixtures,maySubmitFeedback:plan.maySubmitFeedback,imagePasteAllowed:plan.imagePasteAllowed},signal:this.abort.signal});
+    }
     await this.ensureEligible(task);
     const evidenceDir=qa._rsiEvidenceDir;const actualEvidence=evidenceDir&&existsSync(evidenceDir)?readdirSync(evidenceDir).filter(name=>name.endsWith('.png')):[];
     const unrelatedChecks=!plan.maySubmitFeedback&&!plan.permittedFixtures.includes('server_error_on')?(qa.checks||[]).filter(item=>/503|server_error|feedback.{0,15}(?:form|submission)|反馈.{0,10}(?:表单|提交)/i.test(item.name)):[];
-    if(unrelatedChecks.length){qa.passed=false;qa.failureKind='tooling';qa.summary='复测包含未批准的反馈表单检查，需按当前任务范围重新验证；不要求开发修改无关页面。';}
+    if(unrelatedChecks.length&&qa.failureKind!=='product'){qa.passed=false;qa.failureKind='tooling';qa.summary='复测包含未批准的反馈表单检查，需由真人按当前任务范围验证。';}
     store.event(task.id,'browser_check',qa.summary,{sourceSha:candidate.sourceSha,passed:qa.passed,evidence:actualEvidence});
     for(const observation of qa.observations||[])store.event(task.id,'qa_observation',`额外观察（不阻断本任务）：${observation.summary}`,{evidence:observation.evidence});
-    if(qa.passed!==true||!Array.isArray(qa.checks)||!qa.checks.length||qa.checks.some(item=>item.passed!==true)||!actualEvidence.length){
+    const qaDisposition=browserQaDisposition(qa,actualEvidence);
+    if(qaDisposition.status==='product_failure'){
      store.rememberFailure(task.id,'browser',qa,{evidenceDir});findings={stage:'browser',qa,evidenceDir};
-     if(qa.failureKind==='tooling'||!actualEvidence.length||!Array.isArray(qa.checks)||!qa.checks.length){
-      const attempts=(task.metadata.verificationAttempts||0)+1;
-      const limit=config.maxVerificationAttempts||5,progress={sourceSha:candidate.sourceSha,toolVersion:qaToolVersion,checks:[...(task.metadata.qaProgress?.checks||[]),...(qa.checks||[]).filter(item=>item.passed===true).map(item=>({...item,evidenceDir}))]};
-      progress.checks=[...new Map(progress.checks.map(item=>[item.name,item])).values()];
-      if(attempts>=limit)return await this.rejectToHuman(task,`浏览器验证已进行 ${attempts} 次，仍有未取得的证据；保留已验证项目、代码与评审，只需处理剩余验证问题：${qa.summary}`,{findings,verificationAttempts:attempts,qaProgress:progress,resumeStage:'STAGING',escalationKind:'verification_tooling'});
-      store.transition(task.id,'QUEUED',{findings,verificationAttempts:attempts,qaProgress:progress,resumeStage:'STAGING',resumeRound:round,repairPending:false,reason:`已保留通过的验证项目，将针对剩余证据继续浏览器验证（${attempts}/${limit}），不占代码修复轮次。`});store.set('backoffUntil',new Date(Date.now()+30000).toISOString());return;
-     }
      const nextRound=store.repairRoundsUsed(task.id)+1;
      task=store.transition(task.id,'STAGING',{findings,resumeStage:'DEVELOPING',resumeRound:nextRound,repairPending:false,reason:qa.summary});await this.apps.stop('stage');round=nextRound-1;continue;
     }
-    const acceptedDraft={kind:'LOCAL_PR_DRAFT',remotePrCreated:false,baseSha,sourceSha:candidate.sourceSha,title:task.title,feedbackId:task.feedbackId,files:allFiles,checks,review,qa};json(path.join(directory,'local-pr.json'),acceptedDraft);writeFileSync(path.join(directory,'candidate.patch'),completeDiff);
-    store.transition(task.id,'WAITING_ACCEPTANCE',{sourceSha:candidate.sourceSha,release,artifactHash:checks.artifactHash,stageUrl:config.stageUrl,checks,review,qa,resumeStage:null,repairPending:false,lastCallFailure:null,reason:'本地测试版已就绪，等待两名不同账号的真人验收。'});
-    await this.updateFeedback(task,'IN_PROGRESS','候选版已通过检查、独立评审和浏览器复测，等待两名真人验收。');store.event(task.id,'notification','本地测试版就绪，请两名真人验收。',{url:config.appUrl+'/console/admin/rsi',stageUrl:config.stageUrl});return;
+    if(await git(config,['rev-parse','HEAD'],worktree)!==candidate.sourceSha||await git(config,['status','--porcelain'],worktree)||checks.artifactHash!==buildFingerprint(worktree)||checks.artifactHash!==buildFingerprint(release))throw Error('验收前代码或测试产物已变化，禁止继续。');
+    await this.ensureEligible(task);
+    const warning=qaDisposition.status==='unverified'?`浏览器复测未完成，请真人重点验证：${qaDisposition.summary}`:'';
+    if(warning)store.event(task.id,'qa_unverified',warning,{sourceSha:candidate.sourceSha,unverifiedChecks:qaDisposition.unverifiedChecks,blockedCapabilities:qaDisposition.blockedCapabilities});
+    const acceptedDraft={kind:'LOCAL_PR_DRAFT',remotePrCreated:false,baseSha,sourceSha:candidate.sourceSha,title:task.title,feedbackId:task.feedbackId,files:allFiles,checks,review,qa,qaDisposition};json(path.join(directory,'local-pr.json'),acceptedDraft);writeFileSync(path.join(directory,'candidate.patch'),completeDiff);
+    store.transition(task.id,'WAITING_ACCEPTANCE',{sourceSha:candidate.sourceSha,release,artifactHash:checks.artifactHash,stageUrl:config.stageUrl,checks,review,qa,qaDisposition,resumeStage:null,repairPending:false,lastCallFailure:null,reason:warning||'本地测试版已就绪，等待两名不同账号的真人验收。'});
+    await this.updateFeedback(task,'IN_PROGRESS',warning?`候选版通过代码检查和独立评审；${warning} 两名真人验收后才能更新。`:'候选版已通过检查、独立评审和浏览器复测，等待两名真人验收。');store.event(task.id,'notification',warning?'本地测试版就绪；浏览器部分未验证，请两名真人重点验收。':'本地测试版就绪，请两名真人验收。',{url:config.appUrl+'/console/admin/rsi',stageUrl:config.stageUrl});return;
    }
    await this.rejectToHuman(task,`本周期实际代码修复已完成 ${store.repairRoundsUsed(task.id)} 轮，仍有未解决的问题，保留全部证据并转人工；无改动和调用故障不计为代码修复。`,{findings,resumeStage:null,repairPending:false,escalationKind:'repair_limit'});
   }catch(error){if(error.code==='FEEDBACK_HANDOFF_CHANGED')return;try{await this.ensureEligible(task);}catch(handoff){if(handoff.code==='FEEDBACK_HANDOFF_CHANGED')return;throw handoff;}task=store.find(task.id);const failure=taskFailureAction(task,error,{aborted:this.abort.signal.aborted,maxInfrastructureFailures:callFailureLimit(config,task),infrastructureFailures:store.callFailures(task.id)});if(failure.state==='QUEUED'){store.transition(task.id,'QUEUED',failure.metadata);await this.updateFeedback(task,'IN_PROGRESS',failure.metadata.reason).catch(()=>{});}else await this.rejectToHuman(task,failure.metadata.reason,failure.metadata).catch(handoff=>{if(handoff.code!=='FEEDBACK_HANDOFF_CHANGED')store.transition(task.id,'ESCALATED',failure.metadata);});throw error;}
  }
  async release(source,sha,fingerprint){const target=await checkout(this.config,`release-${sha.slice(0,12)}-${fingerprint.slice(0,16)}`,sha);if(!existsSync(path.join(target,'.next'))){const root=path.join(source,'.next');cpSync(root,path.join(target,'.next'),{recursive:true,filter:file=>!path.relative(root,file).split(path.sep).includes('cache')});}if(buildFingerprint(target)!==fingerprint)throw Error('部署产物与检查产物不一致。');return target;}
+ async handoffTooling(task,actor){
+  if(this.store.active()||this.store.get('processRequested')||this.store.get('currentWork')||!this.store.get('appReady'))throw Error('已有任务正在执行或等待验收，请稍后再操作。');
+  const runs=this.store.db.prepare("SELECT role,state,metadata FROM runs WHERE task_id=? AND role='qa' ORDER BY started_at DESC").all(task.id).map(row=>({...row,metadata:JSON.parse(row.metadata)}));
+  const disposition=recoverableToolingResult(task,runs),m=task.metadata,checks=m.checks;
+  const root=realpathSync(path.join(this.config.home,'worktrees')),worktree=realpathSync(m.worktree);
+  if(!worktree.startsWith(root+path.sep))throw Error('候选目录不在本地工作区内。');
+  if(await integrationHead(this.config)!==m.baseSha||await git(this.config,['rev-parse','HEAD'],worktree)!==m.sourceSha||await git(this.config,['status','--porcelain'],worktree)||buildFingerprint(worktree)!==checks.artifactHash)throw Error('基线、候选版本或构建产物已变化，不能恢复验收。');
+  if(checks.tests.total<this.store.get('baselineChecks').tests.total)throw Error('测试数量低于基线，不能恢复验收。');
+  const diff=await git(this.config,['diff','--no-ext-diff','--unified=3',m.baseSha,m.sourceSha],worktree),files=(await git(this.config,['diff','--name-only',m.baseSha,m.sourceSha],worktree)).split('\n').filter(Boolean),kinds=await git(this.config,['diff','--name-status',m.baseSha,m.sourceSha],worktree);
+  if(files.length>this.config.maxChangedFiles||Buffer.byteLength(diff)>this.config.maxDiffBytes||files.some(file=>!allowedPath(file,m.scopeFiles||[]))||/(?:^|\n)[DR]/.test(kinds)||/(?:new file|new) mode 120000/.test(diff)||unsafeDiffReason(diff)||/(?:wtk_|fmtopat_|mob_)[a-zA-Z0-9_-]{15,}|sk-[a-zA-Z0-9_-]{20,}/.test(diff))throw Error('候选变更不满足范围或安全要求，不能恢复验收。');
+  const release=await this.release(worktree,m.sourceSha,checks.artifactHash);await this.apps.start('stage',release);
+  try{
+   if(buildFingerprint(release)!==checks.artifactHash||await integrationHead(this.config)!==m.baseSha)throw Error('测试版或基线在恢复时发生变化。');
+   const db=await appDatabase(this.config);let feedback;
+   const warning=`浏览器复测未完成，请真人重点验证：${disposition.summary}`;
+   try{
+    const current=db.getFeedback(task.feedbackId,actor.id);
+    if(!current||current.handlingMode!=='HUMAN'||current.status!=='IN_PROGRESS'||current.agentRevision!==(m.feedbackRevision||0))throw Error('反馈状态已变化，请刷新后重新检查。');
+    feedback=db.reviewFeedback(task.feedbackId,actor.id,{status:'IN_PROGRESS',reply:`候选版通过代码检查和独立评审；${warning} 两名真人验收后才能更新。`,handlingMode:'AGENT',expectedAgentRevision:current.agentRevision});
+   }finally{db.close();}
+   const qa=m.findings.qa;
+   const next=this.store.transition(task.id,'WAITING_ACCEPTANCE',{handlingMode:'AGENT',feedbackStatus:feedback.status,feedbackRevision:feedback.agentRevision,sourceSha:m.sourceSha,release,artifactHash:checks.artifactHash,stageUrl:this.config.stageUrl,checks,review:m.review,qa,qaDisposition:disposition,resumeStage:null,repairPending:false,lastCallFailure:null,reason:warning});
+   this.store.event(task.id,'qa_unverified',warning,{sourceSha:m.sourceSha,unverifiedChecks:disposition.unverifiedChecks,blockedCapabilities:disposition.blockedCapabilities,recovered:true,actor:actor.name});
+   return next;
+  }catch(error){await this.apps.stop('stage');throw error;}
+ }
  async accept(task,actor,sha,decision,note){
   if(!['approve','reject'].includes(decision))throw Error('无效的验收结果。');
   if(decision==='reject'&&task.state!=='WAITING_ACCEPTANCE'&&this.store.approvals(task.id).some(item=>item.sourceSha===sha&&item.decision==='reject'))return;

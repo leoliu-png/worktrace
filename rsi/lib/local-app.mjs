@@ -36,7 +36,7 @@ export class AppManager{
    let stageAcceptance;
    if(name==='stage'&&((req.url||'/').startsWith('/_rsi/')||req.url==='/')){
     const task=this.store.listTasks().find(task=>task.metadata.release===root);
-    stageAcceptance={title:task?.title,sourceSha:task?.metadata.sourceSha,consoleUrl:config.appUrl+'/console/admin/rsi',approvedRoles:task?['adminA','adminB'].filter(role=>this.store.approvals(task.id).some(approval=>approval.sourceSha===task.metadata.sourceSha&&approval.userId===this.users[role].id&&approval.decision==='approve')):[]};
+    stageAcceptance={title:task?.title,sourceSha:task?.metadata.sourceSha,qaDisposition:task?.metadata.qaDisposition,consoleUrl:config.appUrl+'/console/admin/rsi',approvedRoles:task?['adminA','adminB'].filter(role=>this.store.approvals(task.id).some(approval=>approval.sourceSha===task.metadata.sourceSha&&approval.userId===this.users[role].id&&approval.decision==='approve')):[]};
    }
    const login=localLoginResponse(req.url||'/',req.method,port,{stageAcceptance});
    if(login){req.resume();res.writeHead(login.status,login.headers).end(login.body);return;}

@@ -4,6 +4,7 @@ import {sourceAccess} from './source-access.mjs';
 
 const productScope=/^src\/(?:components\/(?!rsi|console-shell|console-page-frame|account|language-toggle|feedback-list)[\w/\[\]-]+(?:\.test)?(?:\.tsx?)?|app\/console\/(?:logs|feedback|my-logs)(?:\/[\w/\[\]-]+(?:\.test)?(?:\.tsx?)?)?|lib\/(?:feedback[\w.-]*|markdown[\w.-]*)\.tsx?)$/;
 export const automatableScope=file=>typeof file==='string'&&(productScope.test(file)||/^src\/lib\/pasted-work-log-images(?:\.test)?\.ts$/.test(file))&&allowedPath(file,[file]);
+export function missingSavedScope(files,scope){return [...new Set(files)].filter(file=>!allowedPath(file,scope));}
 export function validScopePlan(scope,acceptance,config){
  return Array.isArray(scope)&&scope.length>0&&scope.length<=config.maxChangedFiles&&scope.every(automatableScope)&&Array.isArray(acceptance)&&acceptance.length>0&&acceptance.every(item=>typeof item==='string'&&item.trim());
 }

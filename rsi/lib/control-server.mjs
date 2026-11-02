@@ -58,6 +58,12 @@ export async function controlServer(config,store,pipeline,{requestSweep,shutdown
     if(!validId(input.taskId)||typeof input.sourceSha!=='string'||!/^[a-f0-9]{40}$/.test(input.sourceSha)||typeof input.actor?.id!=='string'||typeof input.actor?.name!=='string'||input.actor.role!=='ADMIN'||typeof input.note!=='string'||input.note.length>1000)throw Error('无效验收信息。');
     const task=store.find(input.taskId);if(!task)throw Error('任务不存在。');await pipeline.accept(task,input.actor,input.sourceSha,input.decision,input.note);res.end(JSON.stringify({ok:true}));return;
    }
+   if(req.url==='/handoff-tooling'){
+    if(!validId(input.taskId)||typeof input.actor?.id!=='string'||typeof input.actor?.name!=='string'||input.actor.role!=='ADMIN')throw Error('需要有效任务和管理员身份。');
+    const task=store.find(input.taskId);if(!task)throw Error('任务不存在。');
+    const result=await pipeline.handoffTooling(task,input.actor);
+    res.end(JSON.stringify({ok:true,state:result.state,message:'测试版已就绪；浏览器未验证项目请两名真人重点检查。'}));return;
+   }
    res.writeHead(404).end('{}');
   }catch(error){res.writeHead(400).end(JSON.stringify({error:error.message}));}
  });
