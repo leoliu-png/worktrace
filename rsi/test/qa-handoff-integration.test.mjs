@@ -23,10 +23,10 @@ test('tooling limitation sends the same reviewed candidate to two-person accepta
   const started=[];const config={home,projectRoot:root,stageUrl:'http://127.0.0.1:3042',appUrl:'http://127.0.0.1:3040',browserChannel:'',maxRepairRounds:5,maxChangedFiles:12,maxDiffBytes:100000};
   const pipeline=new Pipeline(config,store,{start:async(...args)=>started.push(args),stop:async()=>{}},{});
   pipeline.ensureEligible=async()=>{};pipeline.prepareTask=async t=>t;pipeline.updateFeedback=async()=>{};pipeline.release=async()=>root;
-  pipeline.taskAgent=async(_task,options)=>{assert.equal(options.role,'qa');return {passed:false,failureKind:'tooling',summary:'多图粘贴无法验证',checks:[{name:'多图粘贴',passed:false,evidence:'工具不支持'}],blockedCapabilities:['multi_image_paste'],observations:[]};};
+  pipeline.taskAgent=async(_task,options)=>{assert.fail('No independent QA agent should be called');return {passed:false,failureKind:'tooling',summary:'多图粘贴无法验证',checks:[{name:'多图粘贴',passed:false,evidence:'工具不支持'}],blockedCapabilities:['multi_image_paste'],observations:[]};};
   await pipeline.processTask(store.find(task.id));
   const result=store.find(task.id);assert.equal(result.state,'WAITING_ACCEPTANCE');assert.equal(result.metadata.qa.passed,false);assert.equal(result.metadata.qaDisposition.status,'unverified');
-  assert.match(result.metadata.reason,/未完成/);assert.equal(result.metadata.sourceSha,sha);assert.equal(started[0][0],'stage');
+  assert.match(result.metadata.reason,/待真人验证/);assert.equal(result.metadata.sourceSha,sha);assert.equal(started[0][0],'stage');
   const draft=JSON.parse(readFileSync(path.join(home,'tasks',task.id,'local-pr.json'),'utf8'));assert.equal(draft.qaDisposition.status,'unverified');assert.equal(draft.review.sourceSha,sha);
   assert.equal(store.approvals(task.id).length,0);
  }finally{store.close();rmSync(home,{recursive:true,force:true});}

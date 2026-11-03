@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useActionState, useEffect, useRef, useState, type FormEvent, type ClipboardEvent } from 'react';
 import { reviewFeedback, submitFeedback } from '@/app/actions/feedback';
 import { feedbackCategories, feedbackStatuses, feedbackHandlingModes, feedbackCategoryLabel, feedbackStatusLabel, feedbackHandlingLabel, feedbackErrorMessage, agentTaskInstructions, type FeedbackActionState, type FeedbackCategory, type FeedbackStatus, type FeedbackHandlingMode } from '@/lib/feedback';
 import { clearFeedbackDraft, emptyFeedbackDraft, getFeedbackDraftRevision, readFeedbackDraft, saveFeedbackDraft, subscribeFeedbackDraft, type FeedbackDraft } from '@/lib/feedback-draft';
@@ -29,6 +29,20 @@ function FeedbackDraftForm({ locale, userId }: { locale: Locale; userId: string 
   const [pending, setPending] = useState(false);
   const submittingRef = useRef(false);
   const mountedRef = useRef(false);
+  const [images, setImages] = useState<{ file: File; url: string }[]>([]);
+  const imagesRef = useRef(images);
+  const [imageError, setImageError] = useState('');
+  const imageInput = useRef<HTMLInputElement>(null);
+  useEffect(() => () => { for (const image of imagesRef.current) URL.revokeObjectURL(image.url); }, []);
+
+  function addImages(files: File[]) {
+    if (!files.length) return;
+    if (imagesRef.current.length + files.length > 5 || files.some(file => !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type) || !file.size || file.size > 5 * 1024 * 1024)) { setImageError(text('最多添加 5 张 PNG、JPEG、WebP 或 GIF 图片，每张不超过 5 MB。', 'Attach up to 5 PNG, JPEG, WebP or GIF images, each no larger than 5 MB.')); return; }
+    const added = files.map((file, index) => { const named = file.name.trim() ? file : new File([file], `screenshot-${Date.now()}-${index}.${file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1]}`, { type: file.type }); return { file: named, url: URL.createObjectURL(named) }; });
+    const next = [...imagesRef.current, ...added]; imagesRef.current = next; setImages(next); setImageError('');
+  }
+  function removeImage(url: string) { URL.revokeObjectURL(url); const next = imagesRef.current.filter(image => image.url !== url); imagesRef.current = next; setImages(next); setImageError(''); }
+  function pasteImages(event: ClipboardEvent<HTMLTextAreaElement>) { const files = Array.from(event.clipboardData.items).filter(item => item.kind === 'file' && item.type.startsWith('image/')).map(item => item.getAsFile()).filter((file): file is File => file !== null); if (files.length) { event.preventDefault(); addImages(files); } }
 
   useEffect(() => {
     mountedRef.current = true;
@@ -53,6 +67,7 @@ function FeedbackDraftForm({ locale, userId }: { locale: Locale; userId: string 
     event.preventDefault();
     if (!draftReady || submittingRef.current) return;
     const formData = new FormData(event.currentTarget);
+    for (const image of imagesRef.current) formData.append('images', image.file);
     const submittedDraft = { ...draftRef.current };
     const submittedRevision = getFeedbackDraftRevision(userId);
     const previousState = state;
@@ -63,7 +78,10 @@ function FeedbackDraftForm({ locale, userId }: { locale: Locale; userId: string 
       const result = await submitFeedback(previousState, formData);
       // Clear on confirmed success even when navigation has unmounted this form.
       // The revision guard and subscription reset A but preserve later edits in B.
-      if (result.createdId) clearFeedbackDraft(userId, submittedDraft, submittedRevision);
+      if (result.createdId) {
+        clearFeedbackDraft(userId, submittedDraft, submittedRevision);
+        if (mountedRef.current) { for (const image of imagesRef.current) URL.revokeObjectURL(image.url); imagesRef.current = []; setImages([]); if (imageInput.current) imageInput.current.value = ''; }
+      }
       if (mountedRef.current) setState(result);
     } catch {
       // Keep the form editable and the draft intact when the server action rejects.
@@ -87,7 +105,11 @@ function FeedbackDraftForm({ locale, userId }: { locale: Locale; userId: string 
     <fieldset disabled={pending || !draftReady}>
       <label><span>{text('反馈类型', 'Category')}</span><select name="category" value={category} onChange={(event) => updateDraft({ category: event.target.value as FeedbackCategory })}>{feedbackCategories.map((value) => <option key={value} value={value}>{feedbackCategoryLabel(value, locale)}</option>)}</select></label>
       <label><span>{text('标题', 'Title')}</span><input name="title" value={title} onChange={(event) => updateDraft({ title: event.target.value })} required maxLength={120} placeholder={text('例如：希望支持导出每周日志', 'For example: export weekly work logs')} /></label>
-      <label><span>{text('详细说明', 'Details')}</span><textarea name="description" value={description} onChange={(event) => updateDraft({ description: event.target.value })} required maxLength={5000} rows={7} placeholder={text('描述遇到的问题、使用场景或期望的改进效果。如有问题，请写下复现步骤。', 'Describe the problem, use case, or improvement you would like. Include reproduction steps for bugs.')} /><small>{description.length} / 5,000</small></label>
+      <label><span>{text('详细说明', 'Details')}</span><textarea name="description" onPaste={pasteImages} value={description} onChange={(event) => updateDraft({ description: event.target.value })} required maxLength={5000} rows={7} placeholder={text('描述遇到的问题、使用场景或期望的改进效果。如有问题，请写下复现步骤。', 'Describe the problem, use case, or improvement you would like. Include reproduction steps for bugs.')} /><small>{description.length} / 5,000</small></label>
+      <label><span>{text('图片附件（选填）', 'Images (optional)')}</span><input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple onChange={event => { addImages(Array.from(event.target.files || [])); event.target.value = ''; }} /></label>
+      <p className="wt-feedback-hint">{text('可选择图片或在详细说明中粘贴截图，最多 5 张，每张不超过 5 MB。图片不会随文字草稿保存，离开页面前请先提交。', 'Select images or paste screenshots in the details field. Up to 5 images, 5 MB each. Images are not saved with the text draft; submit before leaving.')}</p>
+      {imageError && <p className="wt-form-error" role="alert">{imageError}</p>}
+      {!!images.length && <div className="wt-feedback-images">{images.map(image => <div key={image.url}><img src={image.url} alt={image.file.name} /><button type="button" className="wt-secondary-button" onClick={() => removeImage(image.url)} aria-label={`${text('移除图片', 'Remove image')} ${image.file.name}`}>{text('移除', 'Remove')}</button></div>)}</div>}
       <SubmitButton pending={pending} locale={locale} />
     </fieldset>
     {pending && <p className="wt-feedback-hint" role="status">{text('正在提交反馈，请稍候…', 'Submitting feedback, please wait…')}</p>}

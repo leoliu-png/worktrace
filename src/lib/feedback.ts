@@ -35,6 +35,7 @@ export type Feedback = FeedbackInput & {
   status: FeedbackStatus; reply: string; reviewedBy: string | null;
   handlingMode: FeedbackHandlingMode; agentRevision: number; agentInstructions: string;
   createdAt: string; updatedAt: string;
+  attachments: { id: string; filename: string; mimeType: string; size: number }[];
 };
 export type FeedbackActionState = { error?: string; createdId?: string; saved?: boolean };
 
@@ -58,6 +59,7 @@ const errors: Record<string, readonly [string, string]> = {
   agent_note: ['已完成的反馈不再自动执行；如需继续，请先改为未完成状态并选择 Agent 处理。', 'Completed feedback does not run again. Choose an unfinished status and Agent handling to continue.'],
   reply: ['处理回复不能超过 3,000 字。', 'The reply must be no more than 3,000 characters.'],
   not_found: ['这条反馈不存在，请刷新页面。', 'This feedback no longer exists. Please refresh.'],
+  images: ['图片无效：最多 5 张，支持 PNG、JPEG、WebP、GIF，每张不超过 5 MB。', 'Attach up to 5 PNG, JPEG, WebP or GIF images, each no larger than 5 MB.'],
   save_failed: ['反馈保存失败，请稍后重试。', 'Could not save feedback. Please try again.'],
 };
 export const feedbackCategoryLabel = (value: FeedbackCategory, locale: Locale) => categories[value][locale === 'zh' ? 0 : 1];

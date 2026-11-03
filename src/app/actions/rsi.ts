@@ -5,7 +5,7 @@ import { rsiControl } from '@/lib/rsi-control';
 export async function operateRsi(input: { action: string; taskId?: string; sourceSha?: string; note?: string }) {
   const user = await currentConsoleUser();
   if (!user || user.role !== 'ADMIN') return { error: '需要管理员权限。' };
-  if (!['pause', 'resume', 'sweep', 'process', 'retry', 'close', 'approve', 'reject'].includes(input.action)) return { error: '无效操作。' };
+  if (!['cleanup', 'pause', 'resume', 'sweep', 'process', 'interrupt', 'resume_task', 'retry', 'close', 'approve', 'reject'].includes(input.action)) return { error: '无效操作。' };
   if (input.taskId && !/^[a-f0-9-]{36}$/.test(input.taskId)) return { error: '无效任务。' };
   try {
     if (['approve', 'reject'].includes(input.action)) {

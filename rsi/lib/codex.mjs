@@ -3,28 +3,31 @@ import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
 import {run} from './process.mjs';
-import {cleanEnvironment} from './config.mjs';
+import {cleanEnvironment,defaultSettings} from './config.mjs';
 import {roleTimeout,agentFailure,callFailureLimit} from './retry.mjs';
+import {savedWorkerSession,sessionFromLog,workerVerification} from './worker-session.mjs';
 const string={type:'string'};
 const object=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
 export const schemas={
+ diagnosis:object({outcome:{type:'string',enum:['REPRODUCED','FEATURE','NOT_REPRODUCED','BLOCKED']},summary:string,rootCause:string,scopeFiles:{type:'array',items:string},acceptance:{type:'array',items:string},evidence:{type:'array',items:string}}),
  user:object({outcome:{type:'string',enum:['completed','blocked']},blockedReason:string,summary:string,feedbackSubmitted:{type:'boolean'},feedbackTitle:string,feedbackDescription:string,evidenceFiles:{type:'array',items:string}}),
  triage:object({decision:{type:'string',enum:['IMPLEMENT','ESCALATE','DUPLICATE']},escalationReason:{type:'string',enum:['NONE','SAFETY','SCOPE','CLARIFICATION','CONTEXT','HANDLING_MODE','DUPLICATE']},summary:string,scopeFiles:{type:'array',items:string},acceptance:{type:'array',items:string},duplicateOf:string,contextFiles:{type:'array',items:string}}),
  scope:object({decision:{type:'string',enum:['APPROVE','ESCALATE']},summary:string,scopeFiles:{type:'array',items:string},acceptance:{type:'array',items:string},alignment:string}),
- developer:object({summary:string,blockedReason:string,files:{type:'array',items:string},scopeRequest:object({requiredFiles:{type:'array',items:string},readOnlyFiles:{type:'array',items:string},reason:string})}),
+ developer:object({summary:string,rootCause:string,acceptance:{type:'array',items:string},scopeFiles:{type:'array',items:string},verification:object({status:{type:'string',enum:['passed','unverified','product_failure']},summary:string,checks:{type:'array',items:object({name:string,passed:{type:'boolean'},evidence:string})}}),blockedReason:string,files:{type:'array',items:string},scopeRequest:object({requiredFiles:{type:'array',items:string},readOnlyFiles:{type:'array',items:string},reason:string})}),
  reviewer:object({verdict:{type:'string',enum:['Approve','Request changes','Escalate']},sourceSha:string,summary:string,findings:{type:'array',items:object({file:string,line:{type:'integer'},problem:string,requestedChange:string})},validationRequests:{type:'array',items:string}}),
  qa:object({passed:{type:'boolean'},failureKind:{type:'string',enum:['none','product','tooling']},summary:string,blockedCapabilities:{type:'array',items:string},checks:{type:'array',items:object({name:string,passed:{type:'boolean'},evidence:string})},observations:{type:'array',items:object({summary:string,evidence:string})}})
 };
 function codexEntry(config){if(config.codexEntry&&existsSync(config.codexEntry))return config.codexEntry;for(const directory of (process.env.PATH||process.env.Path||'').split(path.delimiter)){const candidate=path.join(directory,'node_modules/@openai/codex/bin/codex.js');if(existsSync(candidate))return candidate;}throw Error('找不到 Codex CLI。请安装 CLI 或设置 RSI_CODEX_ENTRY。');}
-function sourceWasWritten(directory){const trace=path.join(directory,'source-trace.jsonl');if(!existsSync(trace))return false;for(const line of readFileSync(trace,'utf8').split('\n'))try{const event=JSON.parse(line);if(event.action==='write'&&event.ok===true)return true;}catch{}return false;}
+function sourceWasWritten(directory){const trace=path.join(directory,'source-trace.jsonl');if(!existsSync(trace))return false;for(const line of readFileSync(trace,'utf8').split('\n'))try{const event=JSON.parse(line);if(['write','patch'].includes(event.action)&&event.ok===true&&!/\.test\.[tj]sx?$/.test(event.file||''))return true;}catch{}return false;}
 export async function callAgent(config,store,options){
  const max=config.maxStageAttempts||3;
  for(let attempt=1;attempt<=max;attempt++){
   if(options.beforeAttempt)await options.beforeAttempt();
+  if(options.taskId){const budget=store.workflowBudget(options.taskId,config);if(budget.exhausted){const error=Error('本修复周期的 Token 或调用预算已用完，保留进度，等待调整预算或补充要求。');error.code='TASK_BUDGET';throw error;}}
   const failureLimit=callFailureLimit(config,options.taskId?store.find(options.taskId):null);
   if(options.taskId&&store.callFailures(options.taskId)>=failureLimit){const error=Error('此任务的调用故障重试额度已用完，已有代码和阶段已保留。');error.retryable=true;error.failureKind='transient';throw error;}
   const directory=path.join(options.directory,`call-${randomUUID().slice(0,8)}`);
-  const browser=options.browser?{...options.browser,evidenceDir:path.join(directory,'browser')}:null;
+  const browser=options.browser?{...options.browser,maxActions:options.role==='developer'?32:options.role==='diagnosis'?6:24,evidenceDir:path.join(directory,'browser')}:null;
   try{return await callAttempt(config,store,{...options,directory,browser});}
   catch(error){
    if(!error.retryable||options.signal?.aborted||attempt===max||options.taskId&&store.callFailures(options.taskId)>=failureLimit)throw error;
@@ -37,21 +40,26 @@ export async function callAgent(config,store,options){
 }
 async function callAttempt(config,store,{role,taskId=null,cwd,prompt,directory,browser=null,source=null,signal,repairRound}){
  if(store.countRunsToday()>=config.maxAgentRunsPerDay){const error=Error('今天的 Agent 调用次数已达上限，任务已保留。');error.code='AGENT_QUOTA';throw error;}
+ for(const tool of [...(source?['source']:[]),...(browser?['browser']:[])]){const preflight=await run(process.execPath,['--check',path.join(config.projectRoot,`rsi/bin/${tool}-mcp.mjs`)],{cwd:config.projectRoot,timeout:10000,signal});if(preflight.code!==0){const error=Error(`本地 ${tool} 工具未通过启动预检：${preflight.err.slice(0,1200)}`);error.code='TOOL_PREFLIGHT';throw error;}}
  mkdirSync(directory,{recursive:true});
  const schemaFile=path.join(directory,'schema.json'),output=path.join(directory,'answer.json');
  writeFileSync(schemaFile,JSON.stringify(schemas[role],null,2));writeFileSync(path.join(directory,'prompt.txt'),prompt);
  const entry=codexEntry(config),effort=role==='developer'?(config.developerReasoningEffort||'high'):['reviewer','scope'].includes(role)?(config.reviewerReasoningEffort||'high'):'medium';
  const task=taskId?store.find(taskId):null;
- const metadata={directory,reasoningEffort:effort,repairCycle:task?.metadata.repairCycle||0,sourceSha:task?.metadata.sourceSha||null,...(role==='developer'?{repairRound,repairCharge:false}:{})};
- const runId=store.startRun(taskId,role,metadata,config.maxRepairRounds);store.event(taskId,'agent_started',`${role} 已开始独立会话`,{runId});
- const args=[entry,'--no-daemon','exec','--ignore-user-config','--ephemeral','--json','--sandbox','read-only','-c','approval_policy="never"','-c',`model_reasoning_effort=${JSON.stringify(effort)}`,'-c','web_search="disabled"','-c','features.apps=false','-c','features.multi_agent=false','-c','features.skip_host_skill_discovery=true','-c','features.in_app_browser=false','-c','features.computer_use=false','-c','features.image_generation=false','-c','features.shell_tool=false','--output-schema',schemaFile,'--output-last-message',output,'-'];
- if(source){const settingsFile=path.join(directory,'source-settings.json');writeFileSync(settingsFile,JSON.stringify({...source,directory}));const entry=path.join(config.projectRoot,'rsi/bin/source-mcp.mjs');args.splice(-1,0,'-c',`mcp_servers.rsi_source.command=${JSON.stringify(process.execPath.replaceAll('\\','/'))}`,'-c',`mcp_servers.rsi_source.args=${JSON.stringify([entry.replaceAll('\\','/'),settingsFile.replaceAll('\\','/')])}`,'-c','mcp_servers.rsi_source.required=true','-c','mcp_servers.rsi_source.enabled_tools=["source_action"]','-c','mcp_servers.rsi_source.tools.source_action.approval_mode="approve"');}
+ const model=config.agentModel||defaultSettings.agentModel;
+ const metadata={directory,model,workflowVersion:3,reasoningEffort:effort,repairCycle:task?.metadata.repairCycle||0,sourceSha:task?.metadata.sourceSha||null,...(role==='developer'?{repairRound,repairCharge:false}:{})};
+ const session=role==='developer'?savedWorkerSession(task,cwd):null;
+ const runId=store.startRun(taskId,role,metadata,config.maxRepairRounds);store.event(taskId,'agent_started',role==='developer'?(session?'做事 Agent 正在继续原会话':'做事 Agent 已开始连续修复会话'):`${role} 已开始独立会话`,{runId,sessionId:session});
+ const args=[entry,'--no-daemon','exec','--sandbox','read-only',...(session?['resume',session]:[]),'--ignore-user-config',...(role==='developer'?[]:['--ephemeral']),'--json','--model',model,'-c','approval_policy="never"','-c',`model_reasoning_effort=${JSON.stringify(effort)}`,'-c','web_search="disabled"','-c','features.apps=false','-c','features.multi_agent=false','-c','features.skip_host_skill_discovery=true','-c','features.in_app_browser=false','-c','features.computer_use=false','-c','features.image_generation=false','-c','features.shell_tool=false','--output-schema',schemaFile,'--output-last-message',output,'-'];
+ if(source){const settingsFile=path.join(directory,'source-settings.json');writeFileSync(settingsFile,JSON.stringify({...source,directory,maxActions:source.maxActions||(role==='developer'?18:8),maxOutputBytes:role==='developer'?36000:24000}));const entry=path.join(config.projectRoot,'rsi/bin/source-mcp.mjs');args.splice(-1,0,'-c',`mcp_servers.rsi_source.command=${JSON.stringify(process.execPath.replaceAll('\\','/'))}`,'-c',`mcp_servers.rsi_source.args=${JSON.stringify([entry.replaceAll('\\','/'),settingsFile.replaceAll('\\','/')])}`,'-c','mcp_servers.rsi_source.required=true','-c','mcp_servers.rsi_source.enabled_tools=["source_action"]','-c','mcp_servers.rsi_source.tools.source_action.approval_mode="approve"');}
  if(browser){const settingsFile=path.join(directory,'browser-settings.json');writeFileSync(settingsFile,JSON.stringify(browser));const entry=path.join(config.projectRoot,'rsi/bin/browser-mcp.mjs');args.splice(-1,0,'-c',`mcp_servers.rsi_browser.command=${JSON.stringify(process.execPath.replaceAll('\\','/'))}`,'-c',`mcp_servers.rsi_browser.args=${JSON.stringify([entry.replaceAll('\\','/'),settingsFile.replaceAll('\\','/')])}`,'-c','mcp_servers.rsi_browser.required=true','-c','mcp_servers.rsi_browser.startup_timeout_sec=45','-c','mcp_servers.rsi_browser.enabled_tools=["browser_action"]','-c','mcp_servers.rsi_browser.tools.browser_action.approval_mode="approve"');}
+ const saveSession=()=>{if(role!=='developer'||!taskId)return;const id=sessionFromLog(directory)||session;if(id&&store.find(taskId)){const current=store.find(taskId);store.transition(taskId,current.state,{workerSession:{id,root:path.resolve(cwd)}});metadata.sessionId=id;}};
  try{
   const result=await run(process.execPath,args,{cwd,env:cleanEnvironment(),input:prompt,timeout:roleTimeout(config,role),logFile:path.join(directory,'events.jsonl'),signal,onPid:pid=>store.set('activeProcess',{pid,runId,role,taskId,at:new Date().toISOString()})});
+  saveSession();
   if(result.code!==0){const failure=signal?.aborted?{kind:'interrupted',retryable:false,message:'Agent 已随服务停止，进度已保留。'}:agentFailure(result);const error=Error(failure.message);error.retryable=failure.retryable;error.failureKind=failure.kind;throw error;}
   let answer;try{answer=JSON.parse(readFileSync(output,'utf8'));if(!answer||typeof answer!=='object'||Array.isArray(answer)||schemas[role].required.some(key=>!(key in answer)))throw Error('Invalid answer');}catch{const error=Error('Agent 未返回符合要求的结果，已有改动保留，准备重试当前阶段。');error.retryable=true;error.failureKind='output';throw error;}
-  if(browser){const trace=path.join(browser.evidenceDir,'trace.jsonl');if(!existsSync(trace)||!readFileSync(trace,'utf8').trim())throw Error('浏览器工具没有实际执行，不能把此轮记录为无问题。');}
-  store.finishRun(runId,'COMPLETED',{...metadata,repairCharge:role==='developer'&&!!source&&sourceWasWritten(directory),answer});store.set('activeProcess',null);return browser?{...answer,_rsiEvidenceDir:browser.evidenceDir}:answer;
- }catch(error){store.finishRun(runId,'FAILED',{...metadata,repairCharge:role==='developer'&&!!source&&sourceWasWritten(directory),error:error.message,failureKind:error.failureKind||'execution',retryable:error.retryable===true});store.set('activeProcess',null);throw error;}
+  if(browser&&role!=='developer'){const trace=path.join(browser.evidenceDir,'trace.jsonl');if(!existsSync(trace)||!readFileSync(trace,'utf8').trim())throw Error('浏览器工具没有实际执行，不能把此轮记录为无问题。');}
+  store.finishRun(runId,'COMPLETED',{...metadata,repairCharge:role==='developer'&&!!source&&sourceWasWritten(directory),answer});store.set('activeProcess',null);if(role==='developer')return {...answer,_rsiDirectory:directory,_rsiVerification:workerVerification(answer,directory)};return browser?{...answer,_rsiEvidenceDir:browser.evidenceDir}:answer;
+ }catch(error){saveSession();store.finishRun(runId,'FAILED',{...metadata,repairCharge:role==='developer'&&!!source&&sourceWasWritten(directory),error:error.message,failureKind:error.failureKind||'execution',retryable:error.retryable===true});store.set('activeProcess',null);throw error;}
 }

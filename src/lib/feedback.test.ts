@@ -35,6 +35,20 @@ describe('persistent user feedback', () => {
     expect(db.getFeedback(theirs.id, admin.id)?.authorId).toBe(other.id);
   });
 
+  it('stores image metadata with its feedback and restricts attachment access', () => {
+    const image = { filename: '截图.png', storageKey: 'example.png', mimeType: 'image/png', size: 42 };
+    const feedback = db.createFeedback(member.id, suggestion, [image]);
+    const attachment = feedback.attachments[0];
+    expect(attachment).toMatchObject({ filename: image.filename, mimeType: image.mimeType, size: image.size });
+    expect(db.listFeedback(member.id).items[0].attachments).toEqual(feedback.attachments);
+    expect(db.getFeedbackAttachment(feedback.id, attachment.id, member.id)?.storageKey).toBe(image.storageKey);
+    expect(db.getFeedbackAttachment(feedback.id, attachment.id, admin.id)?.storageKey).toBe(image.storageKey);
+    expect(db.getFeedbackAttachment(feedback.id, attachment.id, other.id)).toBeUndefined();
+    expect(db.getFeedbackAttachment('other-feedback', attachment.id, admin.id)).toBeUndefined();
+    expect(() => db.createFeedback(member.id, suggestion, Array(6).fill(image))).toThrow();
+    expect(db.listFeedback(member.id).items).toHaveLength(1);
+  });
+
   it('makes administrator replies and status updates visible to the submitter', () => {
     const feedback = db.createFeedback(member.id, suggestion);
     db.reviewFeedback(feedback.id, admin.id, { status: 'IN_PROGRESS', reply: ' 已列入下次优化计划。 ' });

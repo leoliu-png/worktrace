@@ -3,7 +3,7 @@ import {allowedPath} from './git.mjs';
 import {sourceAccess} from './source-access.mjs';
 
 const productScope=/^src\/(?:components\/(?!rsi|console-shell|console-page-frame|account|language-toggle|feedback-list)[\w/\[\]-]+(?:\.test)?(?:\.tsx?)?|app\/console\/(?:logs|feedback|my-logs)(?:\/[\w/\[\]-]+(?:\.test)?(?:\.tsx?)?)?|lib\/(?:feedback[\w.-]*|markdown[\w.-]*)\.tsx?)$/;
-export const automatableScope=file=>typeof file==='string'&&(productScope.test(file)||/^src\/lib\/pasted-work-log-images(?:\.test)?\.ts$/.test(file))&&allowedPath(file,[file]);
+export const automatableScope=file=>typeof file==='string'&&(file==='src/app/styles.css'||file==='src/app/rsi.css'||productScope.test(file)||/^src\/lib\/pasted-work-log-images(?:\.test)?\.ts$/.test(file))&&allowedPath(file,[file]);
 export function missingSavedScope(files,scope){return [...new Set(files)].filter(file=>!allowedPath(file,scope));}
 export function validScopePlan(scope,acceptance,config){
  return Array.isArray(scope)&&scope.length>0&&scope.length<=config.maxChangedFiles&&scope.every(automatableScope)&&Array.isArray(acceptance)&&acceptance.length>0&&acceptance.every(item=>typeof item==='string'&&item.trim());
@@ -21,9 +21,9 @@ export function planningContext(root,task,{requestedFiles=[]}={}){
   const base=specifier.startsWith('@/')?'src/'+specifier.slice(2):specifier.startsWith('.')?path.posix.normalize(path.posix.join(path.posix.dirname(file),specifier)):'';
   return [base,base+'.ts',base+'.tsx',base+'/index.ts',base+'/index.tsx'].find(candidate=>known.has(candidate));
  }
- for(let index=0;index<selected.length&&files.length<10;index++){
+ for(let index=0;index<selected.length&&files.length<6;index++){
   const file=selected[index];let item;try{item=source.read(file);}catch{continue;}
-  files.push({file,content:item.content.slice(0,10000),truncated:item.content.length>10000,currentlyWritable:allowedPath(file,scope)});
+  files.push({file,sha256:item.sha256,startLine:item.startLine,endLine:item.endLine,content:item.content.slice(0,2500),truncated:item.content.length>2500||(item.totalLines||0)>(item.endLine||0),currentlyWritable:allowedPath(file,scope)});
   for(const match of item.content.matchAll(/\bfrom\s*['"]([^'"]+)['"]/g)){
    const dependency=resolveImport(file,match[1]);if(!dependency)continue;
    if(seeds.includes(file)&&automatableScope(dependency)&&!allowedPath(dependency,scope))dependencies.add(dependency);

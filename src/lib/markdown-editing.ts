@@ -55,7 +55,9 @@ export const orderedListRenumbering = EditorState.transactionFilter.of((transact
 export function imagePasteInsertion(text: string, from: number, to: number, images: string[]) {
   const before = text.slice(0, from);
   const after = text.slice(to);
-  const prefix = before && !before.endsWith('\n') ? '\n' : '';
+  // Indentation on an otherwise blank line is not text and must not create a new line.
+  const currentLine = before.slice(before.lastIndexOf('\n') + 1);
+  const prefix = /[^\t ]/.test(currentLine) ? '\n' : '';
   const reuseNewline = after.startsWith('\n');
   const insert = `${prefix}${images.join('\n')}${reuseNewline ? '' : '\n'}`;
   return { insert, anchor: from + insert.length + (reuseNewline ? 1 : 0) };

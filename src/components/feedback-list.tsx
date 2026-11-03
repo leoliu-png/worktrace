@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { feedbackStatuses, feedbackCategoryLabel, feedbackStatusLabel, feedbackHandlingLabel, type Feedback, type FeedbackStatus } from '@/lib/feedback';
 import type { Locale } from '@/lib/locale';
 import { formatWorkTraceDateTime } from '@/lib/time';
+import { ImageZoom } from './image-zoom';
 import { FeedbackReviewForm } from './feedback-form';
 
 export function FeedbackFilter({ path, status, locale }: { path: string; status?: FeedbackStatus; locale: Locale }) {
@@ -22,6 +23,7 @@ export function FeedbackList({ items, locale, administrator = false }: { items: 
     <header><div><span className="wt-feedback-category">{feedbackCategoryLabel(item.category, locale)}</span><h3>{item.title}</h3></div><div className="wt-feedback-badges"><span className={`wt-feedback-status wt-feedback-mode-${item.handlingMode.toLowerCase()}`}>{feedbackHandlingLabel(item.handlingMode, locale)}</span><span className={`wt-feedback-status wt-feedback-status-${item.status.toLowerCase()}`}>{feedbackStatusLabel(item.status, locale)}</span></div></header>
     <p className="wt-feedback-meta">{administrator && <span>{item.authorName} · {item.authorEmail} · </span>}{date(item.createdAt)}</p>
     <p className="wt-feedback-description">{item.description}</p>
+    {!!item.attachments?.length && <ImageZoom><div className="wt-feedback-images">{item.attachments.map(image => <img key={image.id} src={`/api/feedback/${item.id}/attachments/${image.id}`} alt={image.filename} title={text('双击放大图片', 'Double-click to enlarge')} loading="lazy" />)}</div></ImageZoom>}
     {item.reply && <div className="wt-feedback-reply"><strong>{text('处理回复', 'Reply')}</strong><p>{item.reply}</p><small>{date(item.updatedAt)}</small></div>}
     {item.agentInstructions && <details className="wt-feedback-review"><summary>{text('给 Agent 的补充要求', 'Agent instructions')}</summary><p className="wt-feedback-description">{item.agentInstructions}</p></details>}
     {administrator && <FeedbackReviewForm feedbackId={item.id} status={item.status} reply={item.reply} handlingMode={item.handlingMode} agentRevision={item.agentRevision} agentInstructions={item.agentInstructions} locale={locale} />}

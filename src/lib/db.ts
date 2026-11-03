@@ -35,6 +35,7 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     CREATE TABLE IF NOT EXISTS time_off_sync_runs (id TEXT PRIMARY KEY, work_log_id TEXT NOT NULL REFERENCES work_logs(id) ON DELETE CASCADE, log_title TEXT NOT NULL, report_date TEXT NOT NULL, source TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, finished_at TEXT, result_json TEXT);
     CREATE TABLE IF NOT EXISTS api_keys (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, prefix TEXT NOT NULL, lookup_prefix TEXT, hash TEXT NOT NULL, encrypted_secret TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, last_used_at TEXT);
     CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, type TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS feedback_attachments (id TEXT PRIMARY KEY, feedback_id TEXT NOT NULL REFERENCES feedback(id) ON DELETE CASCADE, filename TEXT NOT NULL, storage_key TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS feedback (id TEXT PRIMARY KEY, author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, category TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'OPEN', reply TEXT NOT NULL DEFAULT '', reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
   `);
 
@@ -86,11 +87,15 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
     return { ...log, markdownContent: workLogMarkdownContent(log) };
   }
 
+  function feedbackAttachments(id: string) {
+    return sqlite.prepare('SELECT id, filename, mime_type AS mimeType, size FROM feedback_attachments WHERE feedback_id = ? ORDER BY rowid').all(id) as Feedback['attachments'];
+  }
+
   function asFeedback(row: any): Feedback {
     return { id: row.id, authorId: row.author_id, authorName: row.author_name, authorEmail: row.author_email,
       category: row.category, title: row.title, description: row.description, status: row.status,
       handlingMode: row.handling_mode === 'HUMAN' ? 'HUMAN' : 'AGENT', agentRevision: row.agent_revision ?? 0, agentInstructions: row.agent_instructions ?? '',
-      reply: row.reply, reviewedBy: row.reviewed_by, createdAt: row.created_at, updatedAt: row.updated_at };
+      reply: row.reply, reviewedBy: row.reviewed_by, createdAt: row.created_at, updatedAt: row.updated_at, attachments: feedbackAttachments(row.id) };
   }
 
   function feedbackViewer(viewerId: string, all = false): LocalUser {
@@ -152,14 +157,21 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
 
   return {
     transaction<T>(callback: () => T): T { return sqlite.transaction(callback)(); },
-    createFeedback(authorId: string, input: FeedbackInput): Feedback {
+    createFeedback(authorId: string, input: FeedbackInput, images: NewWorkLogAttachment[] = []): Feedback {
       const parsed = feedbackInputSchema.parse(input);
       return sqlite.transaction(() => {
         const author = feedbackViewer(authorId);
         const now = new Date().toISOString();
-        const feedback: Feedback = { ...parsed, id: crypto.randomUUID(), authorId, authorName: author.name, authorEmail: author.email, status: 'OPEN', reply: '', handlingMode: 'AGENT', agentRevision: 0, agentInstructions: '', reviewedBy: null, createdAt: now, updatedAt: now };
+        if (images.length > 5) throw new Error('Too many feedback images');
+        const feedback: Feedback = { ...parsed, attachments: [], id: crypto.randomUUID(), authorId, authorName: author.name, authorEmail: author.email, status: 'OPEN', reply: '', handlingMode: 'AGENT', agentRevision: 0, agentInstructions: '', reviewedBy: null, createdAt: now, updatedAt: now };
         sqlite.prepare('INSERT INTO feedback (id, author_id, category, title, description, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
           .run(feedback.id, authorId, feedback.category, feedback.title, feedback.description, feedback.status, now, now);
+        const insertImage = sqlite.prepare('INSERT INTO feedback_attachments (id, feedback_id, filename, storage_key, mime_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        for (const image of images) {
+          const id = crypto.randomUUID();
+          insertImage.run(id, feedback.id, image.filename, image.storageKey, image.mimeType, image.size, now);
+          feedback.attachments.push({ id, filename: image.filename, mimeType: image.mimeType, size: image.size });
+        }
         writeAuditEvent(authorId, 'FEEDBACK_CREATED', 'FEEDBACK', feedback.id);
         return feedback;
       })();
@@ -168,6 +180,10 @@ export function createDatabase(filename = process.env.LOCAL_DATABASE_PATH ?? 'wo
       const viewer = feedbackViewer(viewerId);
       const row = sqlite.prepare('SELECT feedback.*, users.name AS author_name, users.email AS author_email FROM feedback JOIN users ON users.id = feedback.author_id WHERE feedback.id = ?').get(id) as any;
       return row && (row.author_id === viewerId || viewer.role === 'ADMIN') ? asFeedback(row) : undefined;
+    },
+    getFeedbackAttachment(id: string, attachmentId: string, viewerId: string) {
+      if (!this.getFeedback(id, viewerId)) return undefined;
+      return sqlite.prepare('SELECT filename, storage_key AS storageKey, mime_type AS mimeType, size FROM feedback_attachments WHERE feedback_id = ? AND id = ?').get(id, attachmentId) as NewWorkLogAttachment | undefined;
     },
     listFeedback(viewerId: string, options: { all?: boolean; status?: FeedbackStatus; limit?: number; cursor?: string } = {}) {
       feedbackViewer(viewerId, options.all);

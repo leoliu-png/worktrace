@@ -58,6 +58,8 @@ describe('pasted image spacing', () => {
   it.each([
     { text: '', from: 0, to: 0, expected: `${image}\n` },
     { text: 'text\n', from: 5, to: 5, expected: `text\n${image}\n` },
+    { text: 'text\n   ', from: 8, to: 8, expected: `text\n   ${image}\n` },
+    { text: 'text\n\t  \nnext', from: 8, to: 8, expected: `text\n\t  ${image}\nnext` },
     { text: 'text\n\nnext', from: 5, to: 5, expected: `text\n${image}\nnext` },
     { text: 'beforeafter', from: 6, to: 6, expected: `before\n${image}\nafter` },
     { text: 'before\nreplace\nafter', from: 7, to: 14, expected: `before\n${image}\nafter` },

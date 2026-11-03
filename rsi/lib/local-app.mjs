@@ -26,9 +26,9 @@ export function appEnvironment(config,publicPort,database=config.worktraceDataba
 export class AppManager{
  constructor(config,store,users){this.config=config;this.store=store;this.users=users;this.instances=new Map();}
  async start(name,root,{dev=false}={}){
-  await this.stop(name);const config=this.config,port=name==='stage'?config.stagePort:config.appPort;
+  await this.stop(name);const config=this.config,port=name==='stage'?config.stagePort:name==='preview'?(config.previewPort||config.stagePort+10):config.appPort;
   let database=config.worktraceDatabase;
-  if(name==='stage'){const dataRoot=path.join(config.home,'stage-data');mkdirSync(dataRoot,{recursive:true});database=path.join(dataRoot,path.basename(root)+'.db');if(!existsSync(database)){const source=new Database(config.worktraceDatabase,{readonly:true});try{await source.backup(database);}finally{source.close();}}}
+  if(name==='stage'||name==='preview'){const dataRoot=path.join(config.home,name+'-data');mkdirSync(dataRoot,{recursive:true});database=path.join(dataRoot,path.basename(root)+'.db');if(!existsSync(database)){const source=new Database(config.worktraceDatabase,{readonly:true});try{await source.backup(database);}finally{source.close();}}}
   const log=createWriteStream(path.join(config.home,`${name}-server.log`),{flags:'a'});
   const child=spawn(process.execPath,[path.join(config.projectRoot,'node_modules/next/dist/bin/next'),dev?'dev':'start','--hostname','127.0.0.1','--port',String(port+1)],{cwd:root,env:{...appEnvironment(config,port,database),NODE_ENV:dev?'development':'production'},windowsHide:true,stdio:['ignore','pipe','pipe']});
   child.stdout.pipe(log,{end:false});child.stderr.pipe(log,{end:false});let exited=false;child.once('exit',()=>{exited=true;log.end();});
@@ -51,7 +51,7 @@ export class AppManager{
   this.instances.set(name,{child,proxy,root,dev,port});this.store.set(`${name}Runtime`,{pid:child.pid,parentPid:process.pid,root,port,dev});
   for(let attempt=0;attempt<60;attempt++){
    if(exited)throw Error(`${name} 应用退出，请查看服务日志。`);
-   try{const response=await fetch(`http://127.0.0.1:${port}/console/feedback`,{signal:AbortSignal.timeout(1500)});if(response.ok){this.store.event(null,'app_ready',`${name} 本地应用已启动`,{port});return;}}catch{}
+   try{const response=await fetch(`http://127.0.0.1:${port}${name==='preview'?'/api/auth/providers':'/console/feedback'}`,{signal:AbortSignal.timeout(1500)});if(response.ok){this.store.event(null,'app_ready',`${name} 本地应用已启动`,{port});return;}}catch{}
    await new Promise(resolve=>setTimeout(resolve,700));
   }
   throw Error(`${name} 本地应用启动超时。`);

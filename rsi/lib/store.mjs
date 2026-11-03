@@ -3,7 +3,8 @@ import {randomUUID,createHash} from 'node:crypto';
 import {taskPolicy} from './task-policy.mjs';
 import {failureRecord} from './task-memory.mjs';
 import {agentEligibleFeedback} from './feedback-policy.mjs';
-const terminal=['ACCEPTED','REJECTED','ESCALATED','CLOSED'];
+import {readTokenUsage} from './token-usage.mjs';
+const terminal=['ACCEPTED','REJECTED','ESCALATED','CLOSED','HELD'];
 export class Store{
  constructor(filename){this.db=new Database(filename);this.db.pragma('journal_mode=WAL');this.db.pragma('busy_timeout=5000');this.db.exec(`
  CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
@@ -69,13 +70,36 @@ export class Store{
  repairStats(taskId){const runs=this.developmentRuns(taskId),cycle=this.find(taskId)?.metadata.repairCycle||0;return {used:this.repairRoundsUsed(taskId),cycle,totalUsed:this.repairRoundsUsed(taskId,{all:true}),developerCalls:runs.filter(run=>(run.metadata.repairCycle||0)===cycle).length,totalDeveloperCalls:runs.length,callFailures:this.callFailures(taskId)};}
  retryTask(taskId,actor,note,limit=3){return this.db.transaction(()=>{const task=this.find(taskId);if(!task)throw Error('任务不存在。');const policy=taskPolicy(task,this.repairRoundsUsed(taskId),limit);if(!policy.retryAllowed)throw Error(policy.retryDisabledReason);if(typeof note!=='string'||note.trim().length<8||note.length>1000)throw Error('请至少填写 8 字，说明已经排除的原因或补充的处理方案。');const next=this.transition(taskId,'QUEUED',{retryAttempt:(task.metadata.retryAttempt||0)+1,manualRetryCount:policy.manualRetries+1,manualResolution:note.trim(),reason:'已补充处理方案，等待恢复；累计开发次数不会清零。'});this.event(taskId,'manual_retry',`${actor.name} 补充方案后恢复任务`,{note:note.trim(),used:policy.used,remaining:policy.remaining});return next;})();}
  startRun(taskId,role,metadata={},limit=3){return this.db.transaction(()=>{const cycle=this.find(taskId)?.metadata.repairCycle||0;metadata={...metadata,repairCycle:cycle};const continuing=Number.isInteger(metadata.repairRound)&&metadata.repairRound<=limit&&this.developmentRuns(taskId).some(run=>run.metadata.repairRound===metadata.repairRound&&(run.metadata.repairCycle||0)===cycle);if(role==='developer'&&(!taskId||this.repairRoundsUsed(taskId)>=limit&&!continuing)){const error=Error(`有效代码修复已达到 ${limit} 轮上限，需人工处理。`);error.code='REPAIR_LIMIT';throw error;}const id=randomUUID();this.db.prepare('INSERT INTO runs VALUES(?,?,?,?,?,?,NULL)').run(id,taskId,role,'RUNNING',JSON.stringify(metadata),new Date().toISOString());return id;})();}
- finishRun(id,state,metadata){this.db.prepare('UPDATE runs SET state=?,metadata=?,finished_at=? WHERE id=?').run(state,JSON.stringify(metadata),new Date().toISOString(),id);}
+ finishRun(id,state,metadata){const usage=readTokenUsage(metadata.directory);this.db.prepare('UPDATE runs SET state=?,metadata=?,finished_at=? WHERE id=?').run(state,JSON.stringify({...metadata,tokenUsage:usage}),new Date().toISOString(),id);}
  countRunsToday(){return this.db.prepare("SELECT count(*) AS n FROM runs WHERE date(started_at,'+8 hours')=date('now','+8 hours')").get().n;}
  countTasksToday(){return this.db.prepare("SELECT count(DISTINCT task_id) AS n FROM runs WHERE role='developer' AND date(started_at,'+8 hours')=date('now','+8 hours')").get().n;}
  taskRanToday(taskId){return Boolean(this.db.prepare("SELECT 1 FROM runs WHERE task_id=? AND role='developer' AND date(started_at,'+8 hours')=date('now','+8 hours') LIMIT 1").get(taskId));}
  approve(taskId,actor,sha,decision,note=''){const task=this.find(taskId);if(!task||task.state!=='WAITING_ACCEPTANCE'||task.metadata.sourceSha!==sha)throw Error('候选版本已变化，请刷新后再验收。');this.db.prepare('INSERT INTO approvals VALUES(?,?,?,?,?,?,?) ON CONFLICT(task_id,user_id,source_sha) DO UPDATE SET decision=excluded.decision,note=excluded.note,created_at=excluded.created_at').run(taskId,actor.id,actor.name,sha,decision,note,new Date().toISOString());this.event(taskId,'human_review',`${actor.name}：${decision==='approve'?'验收通过':'验收不通过'}`,{sourceSha:sha,note});return this.approvals(taskId);}
  approvals(taskId){return this.db.prepare('SELECT user_id AS userId,user_name AS userName,source_sha AS sourceSha,decision,note,created_at AS createdAt FROM approvals WHERE task_id=?').all(taskId);}
- status(){return {heartbeat:this.get('heartbeat'),enabled:this.get('enabled',true),nextSweep:this.get('nextSweep'),lastError:this.get('lastError'),agentRunsToday:this.countRunsToday(),tasksToday:this.countTasksToday(),tasks:this.listTasks().map(task=>({...task,approvals:this.approvals(task.id)})),runs:this.db.prepare('SELECT id,task_id AS taskId,role,state,metadata,started_at AS startedAt,finished_at AS finishedAt FROM runs ORDER BY started_at DESC LIMIT 40').all().map(row=>({...row,metadata:JSON.parse(row.metadata)})),events:this.db.prepare('SELECT id,task_id AS taskId,type,message,detail,created_at AS createdAt FROM events ORDER BY id DESC LIMIT 100').all().map(row=>({...row,detail:JSON.parse(row.detail)}))};}
+ workflowBudget(taskId,config){const cycle=this.find(taskId)?.metadata.repairCycle||0;let calls=0,tokens=0,missing=0;for(const row of this.db.prepare('SELECT metadata,state FROM runs WHERE task_id=?').all(taskId)){const m=JSON.parse(row.metadata);if(![2,3].includes(m.workflowVersion)||(m.repairCycle||0)!==cycle)continue;calls++;tokens+=m.tokenUsage?.total||0;if(row.state!=='RUNNING'&&!m.tokenUsage)missing++;}const tokenLimit=config.maxTaskTokens||3000000,callLimit=config.maxTaskCalls||16;return {calls,tokens,missing,tokenLimit,callLimit,exhausted:tokens>=tokenLimit||calls>=callLimit};}
+ agentRunsByTask(){
+  const result=new Map();
+  for(const row of this.db.prepare('SELECT id,task_id,role,state,metadata,started_at,finished_at FROM runs WHERE task_id IS NOT NULL ORDER BY started_at DESC').all()){
+   const meta=JSON.parse(row.metadata);const runs=result.get(row.task_id)||[];
+   runs.push({id:row.id,role:row.role,state:row.state,model:typeof meta.model==='string'?meta.model:null,reasoningEffort:typeof meta.reasoningEffort==='string'?meta.reasoningEffort:null,startedAt:row.started_at,finishedAt:row.finished_at});
+   result.set(row.task_id,runs);
+  }
+  return result;
+ }
+ tokenUsageByTask(){
+  const totals=new Map();
+  for(const row of this.db.prepare('SELECT id,task_id,state,metadata FROM runs WHERE task_id IS NOT NULL').all()){
+   const metadata=JSON.parse(row.metadata);
+   if(row.state!=='RUNNING'&&!Object.hasOwn(metadata,'tokenUsage')){metadata.tokenUsage=readTokenUsage(metadata.directory);this.db.prepare('UPDATE runs SET metadata=? WHERE id=?').run(JSON.stringify(metadata),row.id);}
+   const total=totals.get(row.task_id)||{input:0,output:0,total:0,recorded:0,missing:0,running:0};
+   if(row.state==='RUNNING')total.running++;
+   else if(metadata.tokenUsage){total.input+=metadata.tokenUsage.input;total.output+=metadata.tokenUsage.output;total.total+=metadata.tokenUsage.total;total.recorded++;}
+   else total.missing++;
+   totals.set(row.task_id,total);
+  }
+  return totals;
+ }
+ status(){const usage=this.tokenUsageByTask(),agentRuns=this.agentRunsByTask();return {heartbeat:this.get('heartbeat'),enabled:this.get('enabled',true),nextSweep:this.get('nextSweep'),lastError:this.get('lastError'),agentRunsToday:this.countRunsToday(),tasksToday:this.countTasksToday(),tasks:this.listTasks().map(task=>({...task,tokenUsage:usage.get(task.id)||{input:0,output:0,total:0,recorded:0,missing:0,running:0},agentRuns:agentRuns.get(task.id)||[],approvals:this.approvals(task.id)})),runs:this.db.prepare('SELECT id,task_id AS taskId,role,state,metadata,started_at AS startedAt,finished_at AS finishedAt FROM runs ORDER BY started_at DESC LIMIT 40').all().map(row=>({...row,metadata:JSON.parse(row.metadata)})),events:this.db.prepare('SELECT id,task_id AS taskId,type,message,detail,created_at AS createdAt FROM events ORDER BY id DESC LIMIT 100').all().map(row=>({...row,detail:JSON.parse(row.detail)}))};}
  close(){this.db.close();}
  recoverRuns(retainedRunId=null){const rows=this.db.prepare("SELECT * FROM runs WHERE state='RUNNING'").all().filter(row=>row.id!==retainedRunId);for(const row of rows){this.finishRun(row.id,'FAILED',{...JSON.parse(row.metadata),error:'上次调用进程已结束但未保存结果；已回收中断状态，未将本轮计为成功。',failureKind:'interrupted',retryable:true});this.event(row.task_id,'agent_interrupted',`${row.role} 上次调用已中断，运行状态已回收。`,{runId:row.id});}return rows;}
 }

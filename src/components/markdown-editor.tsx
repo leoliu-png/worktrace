@@ -4,10 +4,10 @@ import { useEffect, useRef, useState, type ClipboardEvent, type ReactNode } from
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { foldGutter, foldKeymap, foldService, indentUnit } from '@codemirror/language';
-import { EditorState } from '@codemirror/state';
+import { EditorState, Prec, StateField, type Range } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, keymap, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { Table } from '@lezer/markdown';
-import { codeBlockField, collapseOnSelectionFacet, editorTheme, imageField, linkPlugin, livePreviewPlugin, markdownStylePlugin, mouseSelectingField, setMouseSelecting, tableField } from 'codemirror-live-markdown';
+import { codeBlockField, collapseOnSelectionFacet, editorTheme, imageField, linkPlugin, livePreviewPlugin, markdownStylePlugin, mouseSelectingField, setMouseSelecting, shouldShowSource, tableField } from 'codemirror-live-markdown';
 import { markdownFoldRange } from '@/lib/markdown-folding';
 import { imagePasteInsertion, orderedListRenumbering } from '@/lib/markdown-editing';
 import { maxMarkdownCharacters } from '@/lib/markdown-work-log';
@@ -115,6 +115,64 @@ const listPreview = ViewPlugin.fromClass(class {
   }
 }, { decorations: (plugin) => plugin.decorations });
 
+class IndentedImageWidget extends WidgetType {
+  constructor(readonly image: WidgetType, readonly indentation: string, readonly bodyFrom: number | null) { super(); }
+  eq(other: WidgetType) { return other instanceof IndentedImageWidget && this.image.eq(other.image) && this.indentation === other.indentation && this.bodyFrom === other.bodyFrom; }
+  toDOM(view: EditorView) {
+    const block = document.createElement('div');
+    block.className = 'wt-cm-image-block';
+    if (this.bodyFrom !== null) block.dataset.bodyFrom = String(this.bodyFrom);
+    const indent = document.createElement('span');
+    indent.className = 'wt-cm-image-indent';
+    indent.textContent = this.indentation;
+    indent.setAttribute('aria-hidden', 'true');
+    block.append(indent, this.image.toDOM(view));
+    return block;
+  }
+  ignoreEvent(event: Event) { return this.image.ignoreEvent(event); }
+  destroy(dom: HTMLElement) { this.image.destroy(dom.lastElementChild as HTMLElement); }
+}
+
+function indentImageDecorations(state: EditorState, source: DecorationSet) {
+  const decorations: Range<Decoration>[] = [];
+  source.between(0, state.doc.length, (from, to, decoration) => {
+    const line = state.doc.lineAt(from);
+    const indentation = state.doc.sliceString(line.from, from);
+    if (!decoration.spec.widget || !/^[ \t]*$/.test(indentation) || !/^[ \t]*$/.test(state.doc.sliceString(to, line.to))) {
+      decorations.push(decoration.range(from, to));
+      return;
+    }
+    let bodyFrom: number | null = null;
+    const columns = (text: string) => { let width = 0; for (const character of text) width += character === '\t' ? state.tabSize - width % state.tabSize : 1; return width; };
+    const imageIndent = columns(indentation);
+    for (let number = line.number - 1; number >= 1 && imageIndent > 0; number--) {
+      const previous = state.doc.line(number);
+      if (!previous.text.trim()) continue;
+      const list = previous.text.match(/^([ \t]*)(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?/);
+      if (list && columns(list[0]) <= imageIndent) { bodyFrom = previous.from + list[0].length; break; }
+      if (columns(previous.text.match(/^[ \t]*/)?.[0] ?? '') < imageIndent) break;
+    }
+    decorations.push(Decoration.replace({ ...decoration.spec, widget: new IndentedImageWidget(decoration.spec.widget, indentation, bodyFrom), block: true, inclusive: true }).range(line.from, line.to));
+  });
+  return Decoration.set(decorations, true);
+}
+
+// The installed CodeMirror retains this configuration at runtime but omits it from its public types.
+const sourceImageField = imageField() as StateField<DecorationSet> & {
+  spec: Parameters<typeof StateField.define<DecorationSet>>[0];
+};
+const indentedImageField = StateField.define({
+  create(state) {
+    const source = sourceImageField.spec.create(state);
+    return { source, decorations: indentImageDecorations(state, source) };
+  },
+  update(value, transaction) {
+    const source = sourceImageField.spec.update(value.source, transaction);
+    return source === value.source && !transaction.docChanged ? value : { source, decorations: indentImageDecorations(transaction.state, source) };
+  },
+  provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
+});
+
 const foldMarkerAlignment = ViewPlugin.fromClass(class {
   constructor(view: EditorView) { this.align(view); }
   update(update: ViewUpdate) {
@@ -137,10 +195,15 @@ const foldMarkerAlignment = ViewPlugin.fromClass(class {
           const match = markers.find(({ rect }) => center >= rect.top && center <= rect.bottom);
           if (match) offsets.push({ marker: match.marker, offset: center - (match.rect.top + match.rect.bottom) / 2 });
         }
-        return offsets;
+        const images = Array.from(view.contentDOM.querySelectorAll<HTMLElement>('.wt-cm-image-block[data-body-from]')).map((block) => {
+          const coordinates = view.coordsAtPos(Number(block.dataset.bodyFrom));
+          return { indent: block.firstElementChild as HTMLElement, width: coordinates ? Math.max(0, coordinates.left - block.getBoundingClientRect().left - 8) : null };
+        });
+        return { offsets, images };
       },
-      write: (offsets) => {
+      write: ({ offsets, images }) => {
         for (const { marker, offset } of offsets) marker.style.transform = `translateY(${offset}px)`;
+        for (const { indent, width } of images) indent.style.width = width === null ? '' : `${width}px`;
       },
     });
   }
@@ -214,7 +277,7 @@ export function MarkdownEditor({ initialValue = '', readOnly = false, children, 
           markdownStylePlugin,
           listPreview,
           foldMarkerAlignment,
-          imageField(),
+          indentedImageField,
           tableField,
           codeBlockField({ copyButton: true }),
           linkPlugin(),

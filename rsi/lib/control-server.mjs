@@ -5,8 +5,9 @@ import path from 'node:path';
 import {publicSettings} from './config.mjs';
 import {statusReport} from './status.mjs';
 import {processingBlock} from './task-policy.mjs';
+import {requestCleanup} from './cleanup.mjs';
 const validId=value=>typeof value==='string'&&/^[a-f0-9-]{36}$/.test(value);
-export async function controlServer(config,store,pipeline,{requestSweep,shutdown}){
+export async function controlServer(config,store,pipeline,{requestSweep,shutdown,interruptTask}){
  const authenticate=req=>{const actual=Buffer.from(req.headers.authorization||'');const expected=Buffer.from('Bearer '+config.controlSecret);return actual.length===expected.length&&timingSafeEqual(actual,expected);};
  const server=createServer(async(req,res)=>{
   res.setHeader('Content-Type','application/json; charset=utf-8');res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
@@ -20,9 +21,23 @@ export async function controlServer(config,store,pipeline,{requestSweep,shutdown
    if(req.method!=='POST')return res.writeHead(404).end('{}');
    let body='';for await(const chunk of req){body+=chunk.toString();if(Buffer.byteLength(body)>10000)throw Error('请求过长。');}const input=JSON.parse(body||'{}');
    if(req.url==='/control'){
-    if(input.action==='pause'){store.set('enabled',false);store.event(null,'paused','已暂停新任务；执行中的任务会完成当前处理。');}
+    if(input.action==='cleanup'){if(input.actor?.role!=='ADMIN')throw Error('需要管理员权限。');requestCleanup(store,'管理员手动清理');res.end(JSON.stringify({ok:true,message:'已安排清理；后台空闲时核对引用并清理副本，不消耗模型 Token。'}));return;}
+    else if(input.action==='pause'){store.set('enabled',false);store.event(null,'paused','已暂停新任务；执行中的任务会完成当前处理。');}
     else if(input.action==='resume'){store.set('enabled',true);store.set('backoffUntil',null);store.event(null,'resumed','已继续自动运行。');}
     else if(input.action==='sweep'){const requested=requestSweep();if(requested)store.event(null,'manual_sweep',store.get('enabled')?'已安排一次手动巡检，空闲时执行。':'已安排一次手动巡检；执行完毕后继续保持暂停。');res.end(JSON.stringify({ok:true,message:requested?'已安排一次巡检；可在当前执行区域查看进度。':'已有一次巡检在等待执行，无需重复点击。'}));return;}
+    else if(input.action==='interrupt'){
+     if(input.actor?.role!=='ADMIN'||typeof input.actor.id!=='string'||typeof input.actor.name!=='string')throw Error('需要管理员身份。');
+     const result=interruptTask(input.actor);res.end(JSON.stringify({ok:true,message:result}));return;
+    }
+    else if(input.action==='resume_task'){
+     if(!validId(input.taskId)||input.actor?.role!=='ADMIN'||typeof input.actor.id!=='string'||typeof input.actor.name!=='string')throw Error('需要有效任务和管理员身份。');
+     const task=store.find(input.taskId);if(!task||task.state!=='HELD')throw Error('此任务当前不处于已中断状态。');
+     if(task.metadata.handlingMode==='HUMAN'||task.metadata.feedbackStatus==='COMPLETED')throw Error('反馈已完成或标记人工处理，不能恢复自动处理。');
+     if(store.get('taskInterruption')?.taskId===task.id)throw Error('任务仍在停止中，请稍后再试。');
+     if(store.workflowBudget(task.id,config).exhausted)throw Error('当前周期预算已用完；请调整运行配置预算，或在反馈管理中补充具体要求开启新周期。');
+     store.transition(task.id,'QUEUED',{reason:'已手动恢复任务，保留之前的代码和运行记录。'});store.event(task.id,'task_resumed',`${input.actor.name} 手动恢复已中断任务`,{});
+     res.end(JSON.stringify({ok:true,message:'任务已恢复排队。自动运行暂停时，请点击“手动处理此反馈”。'}));return;
+    }
     else if(input.action==='process'){
      if(input.actor?.role!=='ADMIN'||typeof input.actor.id!=='string'||typeof input.actor.name!=='string')throw Error('需要管理员身份。');
      if(input.taskId&&!validId(input.taskId))throw Error('无效任务。');
@@ -34,7 +49,7 @@ export async function controlServer(config,store,pipeline,{requestSweep,shutdown
      const blocked=processingBlock(config,store,task);if(blocked)throw Error(blocked);
      const request={id:randomUUID(),taskId:task.id,title:task.title,requestedBy:input.actor.name,requestedAt:new Date().toISOString(),state:'PENDING'};
      store.set('processRequested',request);store.event(task.id,'manual_process',`${input.actor.name} 请求手动处理一条反馈`,{requestId:request.id});
-     res.end(JSON.stringify({ok:true,message:`已安排处理“${task.title}”。将执行筛选、开发、检查、评审和浏览器复测；通过后等待真人验收，自动运行开关保持不变。`}));return;
+     res.end(JSON.stringify({ok:true,message:`已安排处理“${task.title}”。将由做事 Agent 在同一会话定位、修复和验证，检查与构建后独立评审并部署测试版；通过后等待真人验收，自动运行开关保持不变。`}));return;
     }
     else if(input.action==='retry'){
      if(!validId(input.taskId))throw Error('无效任务。');const task=store.find(input.taskId);if(!task||!['ESCALATED','REJECTED'].includes(task.state))throw Error('此任务不能重试。');
@@ -49,7 +64,7 @@ export async function controlServer(config,store,pipeline,{requestSweep,shutdown
      const note=input.note?.trim()||'已结束自动处理，后续由人工处理。';
      await pipeline.updateFeedback(task,'IN_PROGRESS',`自动处理已结束，后续由人工处理：${note}`,{handlingMode:'HUMAN'});
      const current=store.find(task.id);if(!current||!['ESCALATED','REJECTED'].includes(current.state))throw Error('任务状态已变化，请刷新后确认。');
-     store.transition(task.id,'CLOSED',{reason:note,handlingMode:'HUMAN',closedBy:input.actor.name,closedAt:new Date().toISOString()});store.event(task.id,'closed',`${input.actor.name} 结束自动处理并转人工`,{note});
+     store.transition(task.id,'CLOSED',{reason:note,handlingMode:'HUMAN',closedBy:input.actor.name,closedAt:new Date().toISOString()});requestCleanup(store,'任务已结束自动处理');store.event(task.id,'closed',`${input.actor.name} 结束自动处理并转人工`,{note});
      res.end(JSON.stringify({ok:true,message:'已结束自动处理，后续由人工处理；此操作不会重新运行 Agent。'}));return;
     }else if(input.action==='stop'){store.set('enabled',false);res.end(JSON.stringify({ok:true}));setTimeout(shutdown,100);return;}
     else throw Error('无效操作。');res.end(JSON.stringify({ok:true}));return;

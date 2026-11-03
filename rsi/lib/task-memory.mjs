@@ -31,6 +31,7 @@ export function qaPlan(task){
  if(saveFailureRequired)fixtures.push('log_save_error_on','log_save_error_off');
  const requiredCapabilities=[];
  if(imagePasteRequired)requiredCapabilities.push('image_paste','paste_receipts');
+ if(imagePasteRequired&&/空白|换行|间距|spacing|blank.line/i.test(requirements))requiredCapabilities.push('image_spacing_probe');
  if(/粘贴.{0,10}(?:链接|文本|文字|url)|paste.{0,10}(?:url|text)/i.test(requirements))requiredCapabilities.push('text_paste','paste_receipts');
  if(storageRequired)requiredCapabilities.push('storage_failure');
  if(pendingSubmission)requiredCapabilities.push('feedback_submission_hold','submission_receipts');

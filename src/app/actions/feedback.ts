@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/auth';
+import { removeImageAttachments, saveImageAttachments } from '@/lib/attachments';
 import { createDatabase } from '@/lib/db';
 import { feedbackInputSchema, feedbackReviewSchema, type FeedbackActionState } from '@/lib/feedback';
 
@@ -16,11 +17,17 @@ export async function submitFeedback(_state: FeedbackActionState, formData: Form
   if (!user?.id) return { error: 'session' };
   const input = feedbackInputSchema.safeParse({ category: formData.get('category'), title: formData.get('title'), description: formData.get('description') });
   if (!input.success) return { error: input.error.issues[0].path[0]?.toString() ?? 'save_failed' };
-  const database = createDatabase();
+  const values = formData.getAll('images');
+  if (values.some(value => !(value instanceof File)) || values.length > 5) return { error: 'images' };
+  const files = values.filter((value): value is File => value instanceof File && value.size > 0);
+  let images: Awaited<ReturnType<typeof saveImageAttachments>>;
+  try { images = files.length ? await saveImageAttachments(files) : []; }
+  catch { return { error: 'images' }; }
+  let database: ReturnType<typeof createDatabase> | undefined;
   let id: string;
-  try { id = database.createFeedback(user.id, input.data).id; }
-  catch { return { error: 'save_failed' }; }
-  finally { database.close(); }
+  try { database = createDatabase(); id = database.createFeedback(user.id, input.data, images).id; }
+  catch { await removeImageAttachments(images.map(image => image.storageKey)).catch(() => {}); return { error: 'save_failed' }; }
+  finally { database?.close(); }
   refreshFeedback();
   return { createdId: id };
 }
